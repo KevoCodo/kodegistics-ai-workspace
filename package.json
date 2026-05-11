@@ -1,0 +1,10 @@
+{
+  "name": "workflow-ai-dashboard",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "dev:api": "npm --workspace apps/api run start:dev",
+    "dev": "npm run dev:web"
+  }
+}
