@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { TopNav } from "../components/top-nav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,35 +30,22 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        <header className="border-b border-black/10">
-          <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-4">
-            <Link href="/" className="font-semibold tracking-tight">
+      <body className="min-h-full bg-gradient-to-b from-background to-muted text-foreground flex flex-col">
+        <header className="border-b border-border/80 bg-background/70 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+            <Link href="/" className="font-semibold tracking-tight text-foreground">
               AI Workflow Automation Dashboard
             </Link>
-            <nav className="flex items-center gap-4 text-sm text-black/70">
-              <Link className="hover:text-black" href="/dashboard">
-                Dashboard
-              </Link>
-              <Link className="hover:text-black" href="/workflows">
-                Workflows
-              </Link>
-              <Link className="hover:text-black" href="/runs">
-                Runs
-              </Link>
-              <Link className="hover:text-black" href="/architecture">
-                Architecture
-              </Link>
-            </nav>
+            <TopNav />
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
           {children}
         </main>
 
-        <footer className="border-t border-black/10">
-          <div className="mx-auto w-full max-w-5xl px-6 py-6 text-xs text-black/60">
+        <footer className="border-t border-border/80 bg-background/60">
+          <div className="mx-auto w-full max-w-6xl px-6 py-6 text-xs text-muted-foreground">
             Portfolio showcase project. Simulated execution only.
           </div>
         </footer>

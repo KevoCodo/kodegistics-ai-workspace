@@ -5,6 +5,9 @@
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev",
     "dev:api": "npm --workspace apps/api run start:dev",
-    "dev": "npm run dev:web"
+    "dev": "concurrently -n web,api -c blue,green \"npm run dev:web\" \"npm run dev:api\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }
