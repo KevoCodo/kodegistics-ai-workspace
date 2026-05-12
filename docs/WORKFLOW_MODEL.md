@@ -12,7 +12,7 @@ A **Workflow** is a predefined template that describes:
 - The simulation "runner" to execute it
 
 Example fields (conceptual):
-- `id`, `name`, `category`, `description`
+- `id`, `name`, `slug`, `category`, `description`, `status`
 - `inputSchema` (JSON schema-like shape for UI rendering)
 - `version` (optional, for future evolution)
 
@@ -31,20 +31,32 @@ Example fields (conceptual):
 - `startedAt`, `completedAt`
 
 ### WorkflowLog
-A **WorkflowLog** is an append-only record emitted during a run. Logs are intentionally structured to support UI rendering.
+A **WorkflowLog** is an append-only record emitted during a run. In the MVP, logs are simple and UI-friendly (step + message + timestamp).
 
 Example fields (conceptual):
 - `id`, `workflowRunId`
-- `level` (`debug` | `info` | `warn` | `error`)
+- `stepName`
 - `message`
-- `meta` (JSON)
-- `timestamp`
+- `createdAt`
 
 ## Execution statuses
 - `queued` - accepted and waiting to start
 - `running` - actively executing steps
 - `completed` - finished successfully with an output
 - `failed` - finished with an error
+
+## Simulated execution lifecycle (MVP)
+For the MVP, execution is synchronous and simulated inside the API service:
+- A run is created as `queued` with an initial log entry.
+- The service logs a predictable sequence of steps:
+  - `queued`
+  - `validation`
+  - `routing`
+  - `simulated_processing`
+  - `formatting`
+  - `completed` (or `failed`)
+- The run is updated to `running`, then `completed` with an output payload (or `failed` with an error message).
+No external AI providers or workflow tools are called.
 
 ## Initial workflow categories
 - Writing assistance

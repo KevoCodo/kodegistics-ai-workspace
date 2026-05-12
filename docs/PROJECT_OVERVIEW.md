@@ -39,5 +39,11 @@ This project starts with **simulated workflow execution** (no external AI calls)
 The MVP is a small dashboard that lets a user:
 1. Browse a catalog of predefined workflows (generic templates).
 2. Start a workflow run by submitting a simple input form.
-3. Observe execution state transitions and logs in real time (or near-real time).
+3. Observe execution state transitions and ordered logs (timeline-style).
 4. View final run output (simulated) and a structured execution history.
+
+To support demo and screenshot quality, the backend can seed a small set of sample runs in non-production environments (only when the database is empty).
+
+## Public portfolio positioning
+- The codebase is intentionally scoped and readable, optimized for walkthroughs and interviews.
+- All example workflows, inputs, and outputs are generic and sanitized.

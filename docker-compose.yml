@@ -9,6 +9,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d workflow_ai_dashboard"]
       interval: 5s
@@ -31,9 +32,9 @@ services:
     volumes:
       - ./:/app
       - api_node_modules:/app/node_modules
-    command: sh -c "npm ci && npm --workspace apps/api run start:dev"
+    command: sh -c "npm ci && npm --workspace apps/api run build && npm --workspace apps/api run start:prod"
     ports:
-      - "3001:3001"
+      - "${API_PORT:-3001}:3001"
 
   web:
     image: node:20-bookworm-slim
@@ -41,13 +42,20 @@ services:
     depends_on:
       - api
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001
+      # Browser-executed code must be able to reach the API from the same host
+      # you use to open the web UI (e.g. localhost vs a WSL/Docker/VM IP).
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      # Server-side rendering inside the web container must reach the API over the
+      # Docker network (localhost inside the container is not the API container).
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:3001}
+      # Next.js dev server safety setting for non-localhost access.
+      NEXT_ALLOWED_DEV_ORIGINS: ${NEXT_ALLOWED_DEV_ORIGINS:-localhost,127.0.0.1}
     volumes:
       - ./:/app
       - web_node_modules:/app/node_modules
     command: sh -c "npm ci && npm --workspace apps/web run dev -- --hostname 0.0.0.0 --port 3000"
     ports:
-      - "3000:3000"
+      - "${WEB_PORT:-3000}:3000"
 
 volumes:
   postgres_data:

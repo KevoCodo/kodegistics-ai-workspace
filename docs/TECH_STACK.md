@@ -22,7 +22,7 @@ This stack is intentionally conventional and widely understood, to maximize clar
 ## Local development
 - Docker Compose (Postgres + optional admin tools)
 - Node.js (frontend + backend)
-- pnpm or npm (choose one and standardize across the repo)
+- npm workspaces (monorepo scripts + shared lockfile)
 
 ## Future optional AI integration layer (not in MVP)
 - Pluggable "connector" interface for:
@@ -36,3 +36,4 @@ This stack is intentionally conventional and widely understood, to maximize clar
 - **NestJS:** structured backend architecture (modules/services/controllers) that reads well in a portfolio.
 - **Postgres + TypeORM:** realistic persistence with relationships and migrations, without overcomplication.
 - **Docker Compose:** simple, repeatable local setup for reviewers.
+- **Simulated execution first:** demoable behavior without external dependencies or credentials.
