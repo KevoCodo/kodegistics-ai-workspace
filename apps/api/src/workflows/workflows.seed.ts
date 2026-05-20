@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WorkflowStatus } from '../common/enums/workflow-status.enum';
 import { WorkflowEntity } from './workflow.entity';
+import { ProviderType } from '../providers/types/provider-type';
 
 @Injectable()
 export class WorkflowsSeed implements OnModuleInit {
@@ -16,7 +17,7 @@ export class WorkflowsSeed implements OnModuleInit {
   async onModuleInit() {
     const seeds: Array<Pick<
       WorkflowEntity,
-      'name' | 'slug' | 'description' | 'category' | 'status' | 'inputSchema'
+      'name' | 'slug' | 'description' | 'category' | 'status' | 'providerType' | 'inputSchema'
     >> = [
       {
         name: 'Blog Draft Workflow',
@@ -25,6 +26,7 @@ export class WorkflowsSeed implements OnModuleInit {
           'Generate a structured blog post draft from a topic and basic preferences (simulated).',
         category: 'Content Automation',
         status: WorkflowStatus.Active,
+        providerType: ProviderType.Simulated,
         inputSchema: {
           fields: [
             { name: 'topic', label: 'Topic', type: 'text', required: true },
@@ -40,6 +42,7 @@ export class WorkflowsSeed implements OnModuleInit {
           'Summarize a pasted report into key takeaways and action items (simulated).',
         category: 'Business Reporting',
         status: WorkflowStatus.Active,
+        providerType: ProviderType.Simulated,
         inputSchema: {
           fields: [
             {
@@ -65,6 +68,7 @@ export class WorkflowsSeed implements OnModuleInit {
           'Classify an intake message into a category and priority (simulated).',
         category: 'Workflow Routing',
         status: WorkflowStatus.Active,
+        providerType: ProviderType.Simulated,
         inputSchema: {
           fields: [
             {
@@ -83,6 +87,7 @@ export class WorkflowsSeed implements OnModuleInit {
           'Turn meeting notes into a concise recap and next steps (simulated).',
         category: 'Internal Operations',
         status: WorkflowStatus.Active,
+        providerType: ProviderType.Simulated,
         inputSchema: {
           fields: [
             {
@@ -103,8 +108,21 @@ export class WorkflowsSeed implements OnModuleInit {
       },
     ];
 
-    await this.workflowsRepo.upsert(seeds, ['slug']);
-    this.logger.log(`Seeded workflows: ${seeds.map((s) => s.slug).join(', ')}`);
+    const slugs = seeds.map((s) => s.slug);
+    const existing = await this.workflowsRepo.find({
+      where: slugs.map((slug) => ({ slug })),
+      select: { slug: true },
+    });
+    const existingSlugs = new Set(existing.map((w) => w.slug));
+
+    const toInsert = seeds.filter((s) => !existingSlugs.has(s.slug));
+    if (toInsert.length === 0) {
+      this.logger.log('Seeded workflows skipped (already present).');
+      return;
+    }
+
+    await this.workflowsRepo.insert(toInsert);
+    this.logger.log(`Seeded workflows: ${toInsert.map((s) => s.slug).join(', ')}`);
   }
 }
 

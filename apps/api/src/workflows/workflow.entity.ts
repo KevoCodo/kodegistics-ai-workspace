@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { WorkflowStatus } from '../common/enums/workflow-status.enum';
 import { type WorkflowInputSchema } from './dto/workflow-response.dto';
+import { ProviderType } from '../providers/types/provider-type';
 
 @Entity({ name: 'workflow' })
 export class WorkflowEntity {
@@ -29,6 +30,14 @@ export class WorkflowEntity {
 
   @Column({ type: 'enum', enum: WorkflowStatus, default: WorkflowStatus.Active })
   status!: WorkflowStatus;
+
+  @Column({
+    type: 'enum',
+    enum: ProviderType,
+    default: ProviderType.Simulated,
+    name: 'provider_type',
+  })
+  providerType!: ProviderType;
 
   @Column({ type: 'jsonb', name: 'input_schema' })
   inputSchema!: WorkflowInputSchema;

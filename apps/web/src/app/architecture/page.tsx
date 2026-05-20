@@ -43,6 +43,10 @@ export default function ArchitecturePage() {
               Validates requests with DTOs and manages the run lifecycle state
               transitions used by the simulation runner.
             </div>
+            <div>
+              Provides lightweight analytics endpoints for dashboard observability (usage
+              overview, status breakdown, recent activity).
+            </div>
           </CardContent>
         </Card>
 
@@ -65,10 +69,13 @@ export default function ArchitecturePage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <div>
-              Deterministic, safe runner that transitions run states and emits logs in
-              a predictable sequence.
+              Runs are routed through a provider registry so execution adapters can be
+              swapped without changing the API contract.
             </div>
-            <div>No OpenAI, no n8n, and no external connectors in the MVP.</div>
+            <div>
+              Only a <code>simulated</code> provider is enabled in the MVP (no OpenAI,
+              no n8n, no external connectors).
+            </div>
           </CardContent>
         </Card>
       </section>
@@ -116,9 +123,16 @@ export default function ArchitecturePage() {
   |
   | REST/JSON
   v
-NestJS API (Workflows + Runs + Logs)
+NestJS API (Workflows + Runs + Logs + Analytics)
   |
-  | TypeORM
+  | resolve provider
+  v
+Provider Registry
+  |
+  v
+Simulated Provider
+  |
+  | persist logs + state
   v
 PostgreSQL`}
             </pre>

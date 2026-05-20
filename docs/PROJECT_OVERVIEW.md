@@ -1,49 +1,39 @@
 # AI Workflow Automation Dashboard - Project Overview
 
-## Project name
-AI Workflow Automation Dashboard
-
 ## Purpose
-Build a public, sanitized portfolio project that demonstrates how an AI-enabled workflow dashboard could be designed: workflow routing, run orchestration, execution state, validation, and observable logs/results.
+Build a public, sanitized portfolio project that demonstrates how an AI workflow orchestration dashboard can be structured: workflow templates, run lifecycle tracking, execution logs, and operational visibility.
 
-This project starts with **simulated workflow execution** (no external AI calls) to keep it safe, repeatable, and GitHub-ready.
+The MVP uses simulated provider execution (no external AI calls) to keep the repo deterministic, credential-free, and safe for public GitHub.
 
 ## Target audience
-- Hiring managers and engineers evaluating fullstack engineering ability
-- Developers interested in workflow orchestration patterns
-- People who want a realistic-but-generic example of AI automation UX and backend design
+- Recruiters and hiring teams evaluating fullstack engineering and system design
+- Engineers interested in workflow orchestration and operational tooling patterns
+- Anyone looking for a realistic-but-generic reference implementation of workflow UX + backend layering
 
 ## What this project demonstrates
 - Fullstack TypeScript architecture (Next.js + NestJS)
-- Workflow catalog and routing concepts (types, categories, inputs/outputs)
-- Run lifecycle management (queued -> running -> completed/failed)
-- Input validation and safe execution boundaries
-- Persistent logs and results (observable, debuggable runs)
-- Clean separation of concerns (UI, API, persistence, execution engine)
+- Workflow templates with schema-driven inputs (forms generated from `inputSchema`)
+- Run lifecycle management (`queued` -> `running` -> `completed` / `failed`)
+- Provider adapter layer (registry + `providerType`) to show future extensibility
+- Execution logs for traceability (ordered, UI-friendly steps)
+- Persistence in PostgreSQL via TypeORM (workflows, runs, logs)
+- Lightweight analytics for observability discussion (success rate, usage, recent activity)
 
 ## What this project intentionally does not do
-- No authentication/authorization in the MVP
-- No billing, payments, subscriptions, or usage metering
-- No multi-tenant org/team management or admin role complexity
-- No real OpenAI or other external AI integration in early phases
-- No private company/client data, proprietary workflows, or internal prompts
-- No production-hardening guarantees (this is a portfolio demo, not a SaaS)
-
-## Public showcase goals
-- Keep all code and data **generic, sanitized, and safe** for public GitHub
-- Prioritize clarity, maintainability, and developer experience over scale
-- Provide an end-to-end demo: define workflows, start runs, view logs/results
-- Make it easy to extend later (optional real AI connectors as a future phase)
+- Authentication/authorization, SSO, or user management
+- Billing, payments, subscriptions, or usage metering
+- Multi-tenant org/team management or complex roles/permissions
+- Real OpenAI/Anthropic/local model execution (simulated provider only)
+- n8n execution or external workflow engine integrations
+- Private company/client data, proprietary workflows, or internal prompts
+- Production-hardening claims (this is a portfolio MVP, not a SaaS)
 
 ## High-level MVP summary
-The MVP is a small dashboard that lets a user:
-1. Browse a catalog of predefined workflows (generic templates).
-2. Start a workflow run by submitting a simple input form.
-3. Observe execution state transitions and ordered logs (timeline-style).
-4. View final run output (simulated) and a structured execution history.
+The MVP lets a reviewer:
+1. Browse workflow templates (catalog)
+2. Create/edit/deactivate workflow templates (admin-lite CRUD)
+3. Start a workflow run via schema-driven input forms
+4. Observe lifecycle state transitions and ordered logs (timeline-style)
+5. Inspect structured input/output payloads
+6. Review lightweight analytics and provider architecture readiness
 
-To support demo and screenshot quality, the backend can seed a small set of sample runs in non-production environments (only when the database is empty).
-
-## Public portfolio positioning
-- The codebase is intentionally scoped and readable, optimized for walkthroughs and interviews.
-- All example workflows, inputs, and outputs are generic and sanitized.

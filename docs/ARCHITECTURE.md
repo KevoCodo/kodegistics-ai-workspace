@@ -1,44 +1,49 @@
-﻿# Architecture
+# Architecture
 
 ## High-level system architecture
-The system is split into a web UI (Next.js) and an API server (NestJS). The backend owns workflow definitions, run orchestration, persistence, and the simulation engine. PostgreSQL stores workflows, runs, and logs.
+The system is split into a web UI (Next.js) and an API server (NestJS). The backend owns workflow definitions, run orchestration, persistence, and a safe simulation-based execution layer. PostgreSQL stores workflows, runs, and logs.
 
 ## Frontend responsibilities
-- Render workflow catalog (search/filter by category/status)
+- Render the workflow catalog (grouped by category/status)
 - Collect workflow run inputs (schema-driven forms)
-- Display run status, execution timeline logs, timestamps, and final output
-- Provide a clean, "dashboard" UX suitable for a portfolio showcase
+- Display run status, execution timeline logs, timestamps, and final output payload
+- Provide a clean dashboard UX suitable for a portfolio walkthrough
 
 ## Backend responsibilities
-- Expose REST APIs for workflows, runs, and logs
-- Validate inputs and enforce workflow contracts (schema-based validation)
-- Orchestrate run lifecycle (queued/running/completed/failed)
-- Execute the simulation engine and emit ordered logs/events
-- Produce a final "result" payload for completed runs
+- Expose REST APIs for workflows, runs, logs, analytics, and provider readiness
+- Validate requests (DTO validation + workflow input schema checks)
+- Orchestrate the run lifecycle (`queued` -> `running` -> `completed` / `failed`)
+- Route execution through a provider registry (adapter pattern)
+- Execute the simulated provider and emit ordered logs
+- Persist run outputs as structured JSON payloads
+- Provide lightweight analytics endpoints for dashboard observability (overview, status breakdown, usage)
 
 ## Database responsibilities
-- Persist workflow definitions (or seed them at startup in MVP)
-- Persist workflow runs, including inputs, status transitions, and outputs
-- Persist workflow logs (append-only event records)
+- Persist workflow definitions (seeded on startup in the MVP)
+- Persist workflow runs (inputs, status transitions, timestamps, outputs)
+- Persist workflow logs (append-only records)
 
-## Workflow simulation layer responsibilities
-- Execute predefined steps for each workflow type (deterministic and safe)
-- Simulate timing, step progress, and failures in a controlled way (no external calls)
-- Emit logs at each step in chronological order
-- Never call external services in MVP
+## Provider adapter layer (MVP)
+Workflows include a `providerType` field that selects which execution provider is used. This is an architecture readiness layer only.
+
+- Supported provider types in the MVP: `simulated`
+- The simulated provider is deterministic and credential-free (no external calls)
+- A provider registry resolves the provider by `providerType` and routes execution
 
 ## Suggested API flow
-1. `GET /workflows` - list available workflows for the catalog
+1. `GET /workflows` - list workflows for the catalog
 2. `GET /workflows/:slug` - get workflow details and input schema
-3. `POST /workflow-runs` - create a run with validated input (status: `queued`)
-4. Backend transitions run to `running`, appends logs, then writes `completed`/`failed` (synchronous simulation in MVP)
+3. `POST /workflow-runs` - create a run (starts as `queued`)
+4. Backend executes a synchronous simulation (MVP) that updates status, appends logs, and writes `completed`/`failed`
 5. `GET /workflow-runs` - list runs for the dashboard
 6. `GET /workflow-runs/:id` - fetch run details (status, input, output)
-7. `GET /workflow-runs/:id/logs` - fetch logs (or stream later as an enhancement)
+7. `GET /workflow-runs/:id/logs` - fetch logs
+8. `GET /analytics/*` - compute simple observability metrics for the dashboard
+9. `GET /providers` - list enabled providers (architecture readiness)
 
 ## Seeding (demo readiness)
 - Workflows are seeded on API startup (idempotent upsert by `slug`).
-- Sample runs may also be seeded for screenshot-ready UI in non-production environments (only when the database has zero runs).
+- Sample runs can be seeded for screenshot-ready UI in non-production environments (only when the database has zero runs).
 
 ## Text-based architecture diagram
 ```
@@ -46,15 +51,17 @@ Browser (Next.js UI)
         |
         |  REST/JSON
         v
-NestJS API (Workflows + Runs + Logs)
+NestJS API (Workflows + Runs + Logs + Analytics)
+        |
+        |  resolve provider
+        v
+Provider Registry
+        |
+        v
+Simulated Provider
         |
         |  TypeORM
         v
 PostgreSQL (workflow, workflow_run, workflow_log)
-
-Within NestJS:
-  WorkflowRunner (simulation engine)
-    - validates inputs
-    - emits logs
-    - updates run status + output
 ```
+

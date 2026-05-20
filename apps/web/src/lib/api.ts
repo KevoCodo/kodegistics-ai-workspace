@@ -5,6 +5,7 @@ export type ApiError = {
 
 export type WorkflowStatus = "active" | "inactive";
 export type WorkflowRunStatus = "queued" | "running" | "completed" | "failed";
+export type ProviderType = "simulated";
 
 export type WorkflowFieldSchema = {
   name: string;
@@ -26,10 +27,52 @@ export type Workflow = {
   description: string;
   category: string;
   status: WorkflowStatus;
+  providerType: ProviderType;
   inputSchema: WorkflowInputSchema;
   createdAt: string;
   updatedAt: string;
 };
+
+export type AnalyticsOverview = {
+  totalWorkflows: number;
+  activeWorkflows: number;
+  inactiveWorkflows: number;
+  totalRuns: number;
+  completedRuns: number;
+  failedRuns: number;
+  queuedRuns: number;
+  runningRuns: number;
+  successRate: number;
+  averageExecutionTimeMs: number;
+  mostUsedWorkflow: {
+    workflowId: string;
+    workflowName: string;
+    workflowSlug: string;
+    totalRuns: number;
+  } | null;
+};
+
+export type AnalyticsWorkflowUsageRow = {
+  workflowId: string;
+  workflowName: string;
+  workflowSlug: string;
+  totalRuns: number;
+  completedRuns: number;
+  failedRuns: number;
+  successRate: number;
+  averageExecutionTimeMs: number;
+};
+
+export type AnalyticsRecentActivityRow = {
+  runId: string;
+  workflowName: string;
+  workflowSlug: string;
+  status: WorkflowRunStatus;
+  createdAt: string;
+  completedAt: string | null;
+};
+
+export type AnalyticsStatusBreakdown = Record<WorkflowRunStatus, number>;
 
 export type WorkflowRun = {
   id: string;
@@ -135,6 +178,51 @@ export const api = {
     return fetchJson(`/workflows/${encodeURIComponent(slug)}`, {
       cache: "no-store",
     });
+  },
+  async createWorkflow(params: {
+    name: string;
+    slug: string;
+    description: string;
+    category: string;
+    status?: WorkflowStatus;
+    providerType?: ProviderType;
+    inputSchema: WorkflowInputSchema;
+  }): Promise<Workflow> {
+    return fetchJson("/workflows", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
+  },
+  async updateWorkflow(
+    id: string,
+    params: {
+      name?: string;
+      description?: string;
+      category?: string;
+      status?: WorkflowStatus;
+      providerType?: ProviderType;
+      inputSchema?: WorkflowInputSchema;
+    },
+  ): Promise<Workflow> {
+    return fetchJson(`/workflows/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(params),
+    });
+  },
+  async deactivateWorkflow(id: string): Promise<Workflow> {
+    return fetchJson(`/workflows/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+  async analyticsOverview(): Promise<AnalyticsOverview> {
+    return fetchJson("/analytics/overview", { cache: "no-store" });
+  },
+  async analyticsWorkflowUsage(): Promise<AnalyticsWorkflowUsageRow[]> {
+    return fetchJson("/analytics/workflow-usage", { cache: "no-store" });
+  },
+  async analyticsRecentActivity(): Promise<AnalyticsRecentActivityRow[]> {
+    return fetchJson("/analytics/recent-activity", { cache: "no-store" });
+  },
+  async analyticsStatusBreakdown(): Promise<AnalyticsStatusBreakdown> {
+    return fetchJson("/analytics/status-breakdown", { cache: "no-store" });
   },
   async listRuns(): Promise<WorkflowRun[]> {
     return fetchJson("/workflow-runs", { cache: "no-store" });

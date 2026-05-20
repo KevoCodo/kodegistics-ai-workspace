@@ -48,12 +48,24 @@ export default function WorkflowsPage() {
   return (
     <div className="space-y-8">
       <section className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Workflows</h1>
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          Workflow templates define expected inputs, categories, and a safe execution
-          contract. Open any workflow to submit inputs and create a simulated run with
-          logs and a generated output payload.
-        </p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Workflows</h1>
+            <p className="max-w-3xl text-sm text-muted-foreground">
+              Workflow templates define expected inputs, categories, and a safe execution
+              contract. Open any workflow to submit inputs and create a simulated run with
+              logs and a generated output payload.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Link
+              href="/workflows/new"
+              className="inline-flex items-center rounded-md border border-border bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90"
+            >
+              Create workflow
+            </Link>
+          </div>
+        </div>
       </section>
 
       {state.kind === "loading" && (
@@ -109,7 +121,10 @@ export default function WorkflowsPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 {workflows.map((w) => (
-                  <Card key={w.id} className="group flex flex-col">
+                  <Card
+                    key={w.id}
+                    className={`group flex flex-col ${w.status === "inactive" ? "opacity-75" : ""}`}
+                  >
                     <CardHeader className="space-y-2">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -124,7 +139,7 @@ export default function WorkflowsPage() {
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="neutral">{w.category}</Badge>
-                        <Badge>Simulated execution</Badge>
+                        <Badge>Provider: {w.providerType}</Badge>
                         <span className="text-xs text-muted-foreground">
                           Inputs: {w.inputSchema?.fields?.length ?? 0}
                         </span>
@@ -138,6 +153,12 @@ export default function WorkflowsPage() {
                           className="inline-flex items-center rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm transition-colors hover:bg-muted/60"
                         >
                           View details
+                        </Link>
+                        <Link
+                          href={`/workflows/${w.slug}/edit`}
+                          className="ml-3 inline-flex items-center rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm transition-colors hover:bg-muted/60"
+                        >
+                          Edit
                         </Link>
                       </div>
                     </CardContent>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { api, type WorkflowRun } from "../../lib/api";
+import { api, type WorkflowRun, type WorkflowRunStatus } from "../../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { RunStatusBadge } from "../../components/status-badges";
 import { formatDateTime, formatDurationMs, formatRelativeTime } from "../../lib/time";
@@ -14,6 +14,8 @@ type State =
 
 export default function RunsPage() {
   const [state, setState] = useState<State>({ kind: "loading" });
+  const [statusFilter, setStatusFilter] = useState<WorkflowRunStatus | "all">("all");
+  const [workflowFilter, setWorkflowFilter] = useState<string>("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -36,7 +38,23 @@ export default function RunsPage() {
 
   const rows = useMemo(() => {
     if (state.kind !== "ready") return [];
-    return state.runs;
+    return state.runs.filter((run) => {
+      if (statusFilter !== "all" && run.status !== statusFilter) return false;
+      const slug = run.workflow?.slug ?? null;
+      if (workflowFilter !== "all" && slug !== workflowFilter) return false;
+      return true;
+    });
+  }, [state, statusFilter, workflowFilter]);
+
+  const filterOptions = useMemo(() => {
+    if (state.kind !== "ready") return [];
+    const slugs = new Map<string, string>();
+    for (const run of state.runs) {
+      if (run.workflow?.slug && run.workflow?.name) {
+        slugs.set(run.workflow.slug, run.workflow.name);
+      }
+    }
+    return Array.from(slugs.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [state]);
 
   return (
@@ -96,6 +114,48 @@ export default function RunsPage() {
             <CardTitle>Run history</CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="mb-4 grid gap-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-muted-foreground">Status</div>
+                <select
+                  className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  value={statusFilter}
+                  onChange={(e) =>
+                    setStatusFilter(e.target.value as WorkflowRunStatus | "all")
+                  }
+                >
+                  <option value="all">All</option>
+                  <option value="queued">Queued</option>
+                  <option value="running">Running</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-muted-foreground">Workflow</div>
+                <select
+                  className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  value={workflowFilter}
+                  onChange={(e) => setWorkflowFilter(e.target.value)}
+                >
+                  <option value="all">All</option>
+                  {filterOptions.map(([slug, name]) => (
+                    <option key={slug} value={slug}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-muted-foreground">Showing</div>
+                <div className="rounded-md border border-border bg-background/40 px-3 py-2 text-sm">
+                  {rows.length} run{rows.length === 1 ? "" : "s"}
+                </div>
+              </div>
+            </div>
+
             <div className="overflow-auto">
               <table className="w-full min-w-[860px] text-left text-sm">
                 <thead className="border-b border-border text-xs text-muted-foreground">
