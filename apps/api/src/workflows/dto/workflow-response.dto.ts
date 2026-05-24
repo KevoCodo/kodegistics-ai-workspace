@@ -1,4 +1,5 @@
 import { WorkflowStatus } from '../../common/enums/workflow-status.enum';
+import { ProviderType } from '../../providers/types/provider-type';
 
 export type WorkflowFieldSchema = {
   name: string;
@@ -20,6 +21,7 @@ export class WorkflowResponseDto {
   description!: string;
   category!: string;
   status!: WorkflowStatus;
+  providerType!: ProviderType;
   inputSchema!: WorkflowInputSchema;
   createdAt!: Date;
   updatedAt!: Date;

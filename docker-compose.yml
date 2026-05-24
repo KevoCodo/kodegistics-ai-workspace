@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: workflow_ai_dashboard
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -32,6 +32,8 @@ services:
     volumes:
       - ./:/app
       - api_node_modules:/app/node_modules
+      - api_workspace_node_modules:/app/apps/api/node_modules
+      - web_workspace_node_modules:/app/apps/web/node_modules
     command: sh -c "npm ci && npm --workspace apps/api run build && npm --workspace apps/api run start:prod"
     ports:
       - "${API_PORT:-3001}:3001"
@@ -53,7 +55,9 @@ services:
     volumes:
       - ./:/app
       - web_node_modules:/app/node_modules
-    command: sh -c "npm ci && npm --workspace apps/web run dev -- --hostname 0.0.0.0 --port 3000"
+      - api_workspace_node_modules:/app/apps/api/node_modules
+      - web_workspace_node_modules:/app/apps/web/node_modules
+    command: sh -c "npm --workspace apps/web run dev -- --hostname 0.0.0.0 --port 3000"
     ports:
       - "${WEB_PORT:-3000}:3000"
 
@@ -61,3 +65,5 @@ volumes:
   postgres_data:
   api_node_modules:
   web_node_modules:
+  api_workspace_node_modules:
+  web_workspace_node_modules:

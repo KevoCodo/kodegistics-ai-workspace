@@ -1,4 +1,4 @@
-﻿# Development Phases
+# Development Phases
 
 This roadmap keeps the project focused and portfolio-friendly. Each phase should produce a demoable slice with minimal complexity.
 
@@ -6,52 +6,60 @@ This roadmap keeps the project focused and portfolio-friendly. Each phase should
 - Create planning docs (scope, architecture, models, phases)
 - Define MVP boundaries and public GitHub guardrails
 
-## Phase 1: Project setup and base app structure (completed)
-- Initialize monorepo or two-package layout (frontend/backend)
-- Add linting/formatting conventions and basic CI (optional)
-- Add Docker Compose for Postgres (no secrets committed)
+## Phase 1: Project setup and base app structure
+- Initialize monorepo layout (frontend + backend workspaces)
+- Add repeatable local database setup (Docker Compose)
 
-## Phase 2: Backend models and API foundation (completed)
-- Create TypeORM entities: `Workflow`, `WorkflowRun`, `WorkflowLog`
-- Add REST endpoints for listing workflows and creating runs
-- Add input validation and consistent API error shapes
+## Phase 2: Backend models and API foundation
+- Implement TypeORM entities: `Workflow`, `WorkflowRun`, `WorkflowLog`
+- Add REST endpoints for workflows, runs, and logs
+- Validate inputs and keep error responses readable
 
-## Phase 3: Frontend dashboard and workflow catalog (completed)
+## Phase 3: Frontend dashboard and workflow catalog
 - Workflow catalog UI (list/detail)
-- Simple run list UI (status, timestamps)
-- Clean base layout with Tailwind + shadcn/ui
+- Run list UI (status + timestamps)
+- Clean base layout with Tailwind + minimal component primitives
 
-## Phase 4: Workflow run form and simulated execution (completed)
-- Dynamic input forms driven by workflow input schema
-- Backend simulation runner that updates status + writes logs
-- Basic "run details" page (status + output)
+## Phase 4: Schema-driven forms and simulated execution
+- Render input forms driven by workflow `inputSchema`
+- Implement a simulation runner that updates run status and emits ordered logs
+- Run detail page with timeline logs and structured output payloads
 
-## Phase 5: Logs, result output, and polish
-- Log viewer UI (levels, timestamps, filtering)
-- Better status UX (loading states, error states)
-- Seed workflows and improve demo content (still generic)
+## Phase 5: Demo readiness and polish
+- Seed workflows on API startup (idempotent upsert)
+- Optionally seed sample runs when the DB is empty (screenshot-ready UI)
+- Improve UI states and copy for demo walkthroughs
 
-Status: completed - Timeline-style logs, improved dashboard/run UX, seeded sample runs for screenshot readiness.
+## Phase 8: Portfolio polish and public identity upgrade (completed)
+- Recruiter-friendly README and docs that match the implementation
+- Launch checklist for GitHub/LinkedIn readiness (no secrets, clear setup)
+- Screenshot and diagram guidance for consistent, public-safe visuals
 
-## Phase 6A: Functional MVP wiring and end-to-end execution (completed)
-- Ensure workflows load end-to-end (web -> API -> DB)
-- Ensure runs can be created from workflow detail forms
-- Ensure run detail shows ordered logs and output payload
-- Ensure dashboard stats populate from real API data
+## Phase 9: Workflow template management (completed)
+- Add admin-lite workflow template CRUD (create/edit/deactivate)
+- Keep workflows public-safe and MVP-scoped (no visual builder, no external calls)
+- Preserve existing run creation and simulated lifecycle behavior
 
-## Phase 6: README, screenshots, and public portfolio cleanup
-- Finalize README with setup steps
-- Add screenshots/gifs using only sanitized sample data
-- Confirm scope guardrails and remove any accidental sensitive content
+## Phase 10: Run insights and observability layer (completed)
+- Add lightweight analytics endpoints (`/analytics/*`) for dashboard visibility
+- Upgrade dashboard to display workflow health, status breakdown, and recent activity
+- Keep observability generic (no prompt evaluation, no heavy tracing)
 
-Status: completed - README refreshed, docs aligned, and the UI is screenshot-ready for public portfolio use.
+## Phase 11: Provider adapter layer and architecture readiness (completed)
+- Add a minimal provider adapter interface and a provider registry
+- Implement a `simulated` provider (deterministic, safe, no external calls)
+- Persist `providerType` on workflow templates (default: `simulated`)
+- Route workflow run execution through the provider registry
+- Expose `GET /providers` for architecture readiness walkthroughs
 
-## Phase 6B: Launch readiness (completed)
-- Improve UI polish and screenshot readiness
-- Add portfolio-focused documentation and talking points
-- Verify public-safe copy and guardrails across the repo
+## Phase 12: Final launch and public showcase prep (completed)
+- Finalize README for public GitHub + interview walkthroughs
+- Review and tighten docs for accuracy and public-safe framing
+- Add portfolio copy and a case study doc for reuse (resume/LinkedIn/interviews)
+- Verify demo flow, Docker setup, and screenshot readiness
 
-## Future Phase: Optional real OpenAI/n8n integration
-- Add connector interfaces and feature flags
-- Implement optional provider integrations without changing core domain model
-- Keep credentials out of the repo and document local setup securely
+## Future phases (out of scope for MVP)
+- Optional real provider connectors behind feature flags (kept out of the MVP)
+- Streaming updates (SSE/WebSockets)
+- Async execution (queue + worker)
+- Authentication/billing only if explicitly requested later

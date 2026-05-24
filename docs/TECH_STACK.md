@@ -7,33 +7,32 @@ This stack is intentionally conventional and widely understood, to maximize clar
 - React
 - TypeScript
 - Tailwind CSS
-- shadcn/ui component primitives
+- Small UI component primitives (dark dashboard aesthetic)
 
 ## Backend
 - NestJS (REST API)
 - TypeScript
-- Validation: `class-validator` / `class-transformer` (or equivalent Nest patterns)
-- OpenAPI (Swagger) for API documentation (optional but recommended)
+- TypeORM
+- DTO validation with `class-validator` / `class-transformer`
 
 ## Database
 - PostgreSQL
-- TypeORM (entities + migrations)
+- JSON payload persistence for workflow inputs/outputs
 
 ## Local development
-- Docker Compose (Postgres + optional admin tools)
-- Node.js (frontend + backend)
-- npm workspaces (monorepo scripts + shared lockfile)
+- Docker Compose for Postgres (and optional full stack)
+- npm workspaces (monorepo)
+- Node.js 20+
 
-## Future optional AI integration layer (not in MVP)
-- Pluggable "connector" interface for:
-  - OpenAI (or other LLM providers)
-  - n8n or similar workflow tools
-- Feature-flagged, with safe defaults and no credentials committed
+## Architecture patterns showcased
+- Schema-driven forms (workflow-defined inputs)
+- Provider adapter layer (registry + provider interface; simulated provider only)
+- Status-driven run lifecycle and execution logs
+- Lightweight analytics endpoints for observability discussion
 
-## Why this stack
-- **TypeScript end-to-end:** one language across UI, API, and domain modeling.
-- **Next.js + Tailwind + shadcn/ui:** fast UI iteration and modern component patterns.
-- **NestJS:** structured backend architecture (modules/services/controllers) that reads well in a portfolio.
-- **Postgres + TypeORM:** realistic persistence with relationships and migrations, without overcomplication.
-- **Docker Compose:** simple, repeatable local setup for reviewers.
-- **Simulated execution first:** demoable behavior without external dependencies or credentials.
+## Intentional non-goals (MVP)
+- No authentication, billing, or team/user management
+- No real provider integrations (OpenAI/Anthropic/local models)
+- No external workflow tool execution (n8n, etc.)
+- No visual workflow builder
+

@@ -1,8 +1,7 @@
 # Diagrams
 
-Place any exported diagrams here (optional). Keep all content generic and public-safe.
+Keep all content generic and public-safe.
 
-Suggested files:
-- `architecture.txt` (ASCII/monospace diagram)
-- `architecture.png` (optional visual)
-
+## Suggested files
+- `architecture.md`: clean text diagram for README/interviews
+- `architecture.png`: optional exported visual diagram

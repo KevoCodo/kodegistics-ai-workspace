@@ -1,12 +1,19 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { api, getApiBaseUrl, type WorkflowRun, type Workflow } from "../lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import {
+  api,
+  getApiBaseUrl,
+  type AnalyticsOverview,
+  type AnalyticsRecentActivityRow,
+  type AnalyticsStatusBreakdown,
+  type AnalyticsWorkflowUsageRow,
+} from "../lib/api";
 import { Badge } from "../components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { RunStatusBadge } from "../components/status-badges";
-import { formatDateTime, formatRelativeTime } from "../lib/time";
+import { formatDateTime, formatDurationMs, formatRelativeTime } from "../lib/time";
 
 type DashboardState =
   | { kind: "loading" }
@@ -14,12 +21,19 @@ type DashboardState =
   | {
       kind: "ready";
       apiOk: boolean;
-      workflows: Workflow[];
-      runs: WorkflowRun[];
+      overview: AnalyticsOverview;
+      recent: AnalyticsRecentActivityRow[];
+      usage: AnalyticsWorkflowUsageRow[];
+      breakdown: AnalyticsStatusBreakdown;
     };
 
 function formatCount(n: number) {
   return new Intl.NumberFormat(undefined, { notation: "compact" }).format(n);
+}
+
+function formatPercent(n: number) {
+  if (!Number.isFinite(n)) return "-";
+  return `${n.toFixed(1)}%`;
 }
 
 export default function DashboardPage() {
@@ -30,17 +44,21 @@ export default function DashboardPage() {
     let cancelled = false;
     async function load() {
       try {
-        const [health, workflows, runs] = await Promise.all([
+        const [health, overview, usage, recent, breakdown] = await Promise.all([
           api.health().catch(() => null),
-          api.listWorkflows(),
-          api.listRuns(),
+          api.analyticsOverview(),
+          api.analyticsWorkflowUsage(),
+          api.analyticsRecentActivity(),
+          api.analyticsStatusBreakdown(),
         ]);
         if (cancelled) return;
         setState({
           kind: "ready",
           apiOk: Boolean(health?.status === "ok"),
-          workflows,
-          runs,
+          overview,
+          usage,
+          recent,
+          breakdown,
         });
       } catch (e) {
         if (cancelled) return;
@@ -61,32 +79,16 @@ export default function DashboardPage() {
 
   const summary = useMemo(() => {
     if (state.kind !== "ready") return null;
-    const activeWorkflows = state.workflows.filter(
-      (w) => w.status === "active",
-    ).length;
-    const totalRuns = state.runs.length;
 
-    const runsByStatus = state.runs.reduce(
-      (acc, run) => {
-        acc[run.status] += 1;
-        return acc;
-      },
-      { queued: 0, running: 0, completed: 0, failed: 0 } as Record<
-        WorkflowRun["status"],
-        number
-      >,
-    );
+    const maxUsage =
+      state.usage.reduce((max, row) => Math.max(max, row.totalRuns), 0) || 0;
+    const totalByStatus =
+      state.breakdown.queued +
+      state.breakdown.running +
+      state.breakdown.completed +
+      state.breakdown.failed;
 
-    const workflowsByCategory = state.workflows.reduce((acc, w) => {
-      acc[w.category] = (acc[w.category] ?? 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const categoryRows = Object.entries(workflowsByCategory)
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 8);
-
-    return { activeWorkflows, totalRuns, runsByStatus, categoryRows };
+    return { maxUsage, totalByStatus };
   }, [state]);
 
   return (
@@ -96,14 +98,18 @@ export default function DashboardPage() {
           <div className="space-y-3">
             <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
             <p className="max-w-3xl text-base text-muted-foreground">
-              Public portfolio dashboard demonstrating workflow catalog design, run
-              lifecycle state handling, validation boundaries, and observable logs and
-              outputs. Execution is simulated only (no external AI calls).
+              Operational overview of workflow health, run lifecycle state, and observable
+              execution logs. Execution is simulated only (no external AI calls).
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="neutral">Public showcase</Badge>
               <Badge variant="neutral">Simulated execution</Badge>
               <Badge variant="neutral">No auth in MVP</Badge>
+              {state.kind === "ready" ? (
+                <Badge variant={state.apiOk ? "success" : "neutral"}>
+                  API: {state.apiOk ? "ok" : "unknown"}
+                </Badge>
+              ) : null}
             </div>
           </div>
 
@@ -147,17 +153,15 @@ export default function DashboardPage() {
       <section className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader>
-            <CardTitle>Active Workflows</CardTitle>
+            <CardTitle>Total Workflows</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold tracking-tight">
-              {state.kind === "ready"
-                ? formatCount(summary!.activeWorkflows)
-                : "-"}
+              {state.kind === "ready" ? formatCount(state.overview.totalWorkflows) : "-"}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {state.kind === "ready"
-                ? `of ${formatCount(state.workflows.length)} total`
+                ? `Active: ${formatCount(state.overview.activeWorkflows)} · Inactive: ${formatCount(state.overview.inactiveWorkflows)}`
                 : "Loading workflow catalog..."}
             </div>
           </CardContent>
@@ -165,54 +169,106 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Workflow Runs</CardTitle>
+            <CardTitle>Active Workflows</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold tracking-tight">
-              {state.kind === "ready" ? formatCount(summary!.totalRuns) : "-"}
+              {state.kind === "ready" ? formatCount(state.overview.activeWorkflows) : "-"}
             </div>
-            {state.kind === "ready" ? (
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span>Completed: {summary!.runsByStatus.completed}</span>
-                <span>Failed: {summary!.runsByStatus.failed}</span>
-                <span>Queued: {summary!.runsByStatus.queued}</span>
-                <span>Running: {summary!.runsByStatus.running}</span>
-              </div>
-            ) : (
-              <div className="mt-1 text-xs text-muted-foreground">
-                Loading run history...
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Simulation Mode</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold tracking-tight">On</div>
             <div className="mt-1 text-xs text-muted-foreground">
-              Deterministic runner, no external calls.
+              {state.kind === "ready"
+                ? `Inactive: ${formatCount(state.overview.inactiveWorkflows)}`
+                : "Loading workflow catalog..."}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>System Status</CardTitle>
+            <CardTitle>Total Runs</CardTitle>
           </CardHeader>
           <CardContent>
-            {state.kind === "ready" ? (
-              <Badge variant={state.apiOk ? "success" : "danger"}>
-                {state.apiOk ? "API online" : "API offline"}
-              </Badge>
-            ) : (
-              <Badge variant="neutral">Checking...</Badge>
-            )}
-            <div className="mt-2 text-xs text-muted-foreground">
-              API base URL: <code>{apiBaseUrl ?? "not configured"}</code>
+            <div className="text-2xl font-semibold tracking-tight">
+              {state.kind === "ready" ? formatCount(state.overview.totalRuns) : "-"}
             </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {state.kind === "ready"
+                ? `Completed: ${formatCount(state.overview.completedRuns)} · Failed: ${formatCount(state.overview.failedRuns)}`
+                : "Loading run history..."}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Failed Runs</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold tracking-tight">
+              {state.kind === "ready" ? formatCount(state.overview.failedRuns) : "-"}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {state.kind === "ready"
+                ? `Success rate: ${formatPercent(state.overview.successRate)}`
+                : "Loading metrics..."}
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Success Rate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold tracking-tight">
+              {state.kind === "ready" ? formatPercent(state.overview.successRate) : "-"}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {state.kind === "ready"
+                ? "Completed / (completed + failed)"
+                : "Loading metrics..."}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Average Execution Time</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold tracking-tight">
+              {state.kind === "ready"
+                ? formatDurationMs(state.overview.averageExecutionTimeMs)
+                : "-"}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {state.kind === "ready"
+                ? "Across finished runs (startedAt + completedAt)"
+                : "Loading metrics..."}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Most Used Workflow</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {state.kind === "ready" && state.overview.mostUsedWorkflow ? (
+              <div className="space-y-1">
+                <div className="text-sm font-medium">
+                  {state.overview.mostUsedWorkflow.workflowName}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  <code>{state.overview.mostUsedWorkflow.workflowSlug}</code> ·{" "}
+                  {formatCount(state.overview.mostUsedWorkflow.totalRuns)} runs
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">-</div>
+            )}
           </CardContent>
         </Card>
       </section>
@@ -220,135 +276,136 @@ export default function DashboardPage() {
       <section className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
+            <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
           <CardContent>
-            {state.kind === "loading" && (
-              <div className="text-sm text-muted-foreground">Loading runs...</div>
-            )}
-            {state.kind === "error" && (
-              <div className="space-y-1 text-sm text-rose-800">
-                <div>Unable to load recent activity.</div>
-                <div className="text-xs text-rose-700">
-                  Confirm the API is running and <code>NEXT_PUBLIC_API_URL</code> is
-                  set.
-                </div>
-              </div>
-            )}
-            {state.kind === "ready" && state.runs.length === 0 && (
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <div>No runs yet.</div>
-                <div>
-                  Start a run from any workflow detail page to populate activity and logs.
-                </div>
-              </div>
-            )}
-            {state.kind === "ready" && state.runs.length > 0 && (
+            {state.kind === "ready" && state.recent.length > 0 ? (
               <ul className="space-y-2">
-                {state.runs.slice(0, 5).map((run) => (
+                {state.recent.slice(0, 10).map((row) => (
                   <li
-                    key={run.id}
+                    key={row.runId}
                     className="rounded-lg border border-border bg-background/40 transition-colors hover:bg-muted/40"
                   >
                     <Link
-                      href={`/runs/${run.id}`}
+                      href={`/runs/${row.runId}`}
                       className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
                     >
                       <div className="min-w-0">
-                        <div className="truncate font-medium">
-                          {run.workflow?.name ?? run.workflowId}
-                        </div>
+                        <div className="truncate font-medium">{row.workflowName}</div>
                         <div className="text-xs text-muted-foreground">
-                          {formatRelativeTime(run.createdAt)} - {formatDateTime(run.createdAt)}
+                          <code>{row.workflowSlug}</code> ·{" "}
+                          {formatRelativeTime(row.createdAt)} · {formatDateTime(row.createdAt)}
                         </div>
                       </div>
-                      <RunStatusBadge status={run.status} />
+                      <RunStatusBadge status={row.status} />
                     </Link>
                   </li>
                 ))}
               </ul>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                No recent runs yet. Create one from a workflow detail page.
+              </div>
             )}
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <Link className="text-sm underline" href="/runs">
+            <div className="mt-3 text-xs text-muted-foreground">
+              <Link className="underline" href="/runs">
                 View all runs
-              </Link>
-              <Link className="text-sm underline" href="/workflows">
-                Create another run
               </Link>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-1">
+        <Card>
           <CardHeader>
-            <CardTitle>Workflow categories</CardTitle>
+            <CardTitle>Status Breakdown</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             {state.kind === "ready" ? (
-              <div className="space-y-3">
-                <div className="text-sm text-muted-foreground">
-                  Quick overview of seeded workflow templates.
-                </div>
-                <ul className="space-y-2">
-                  {summary!.categoryRows.map(([category, count]) => (
-                    <li
-                      key={category}
-                      className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2 text-sm"
-                    >
-                      <span className="truncate">{category}</span>
-                      <span className="text-muted-foreground">{count}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="pt-1">
-                  <Link className="text-sm underline" href="/workflows">
-                    Browse all workflows
-                  </Link>
-                </div>
-              </div>
+              (["queued", "running", "completed", "failed"] as const).map((k) => {
+                const count = state.breakdown[k];
+                const pct =
+                  summary!.totalByStatus > 0
+                    ? Math.round((count / summary!.totalByStatus) * 100)
+                    : 0;
+                return (
+                  <div key={k} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="capitalize">{k}</span>
+                      <span>
+                        {count} ({pct}%)
+                      </span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-muted/60">
+                      <div
+                        className="h-2 rounded-full bg-primary/70"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })
             ) : (
-              <div className="text-sm text-muted-foreground">Loading categories...</div>
+              <div className="text-sm text-muted-foreground">Loading breakdown...</div>
             )}
           </CardContent>
         </Card>
       </section>
 
-      <section className="grid gap-6 md:grid-cols-2">
+      <section>
         <Card>
           <CardHeader>
-            <CardTitle>What this dashboard demonstrates</CardTitle>
+            <CardTitle>Workflow Usage</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              <li>Workflow catalog and routing concepts</li>
-              <li>Run lifecycle state management (queued/running/etc.)</li>
-              <li>Validation boundaries and safe defaults</li>
-              <li>Observable logs and structured outputs</li>
-            </ul>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Demo flow</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <div>
-              Open a workflow, submit inputs, then view the resulting run timeline and
-              output payload.
+          <CardContent className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              Usage and health summary by workflow template (runs, success rate, average
+              execution time).
             </div>
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <Link className="text-sm underline" href="/workflows">
-                Start from workflows
-              </Link>
-              <span className="text-muted-foreground/60">-</span>
-              <Link className="text-sm underline" href="/architecture">
-                Architecture overview
-              </Link>
-            </div>
+            {state.kind === "ready" && state.usage.length > 0 ? (
+              <div className="space-y-3">
+                {state.usage.slice(0, 8).map((row) => {
+                  const pct =
+                    summary!.maxUsage > 0
+                      ? Math.round((row.totalRuns / summary!.maxUsage) * 100)
+                      : 0;
+                  return (
+                    <div key={row.workflowId} className="space-y-1">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                        <div className="min-w-0">
+                          <Link
+                            className="font-medium underline"
+                            href={`/workflows/${row.workflowSlug}`}
+                          >
+                            {row.workflowName}
+                          </Link>{" "}
+                          <span className="text-xs text-muted-foreground">
+                            (<code>{row.workflowSlug}</code>)
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Runs: {row.totalRuns} · Success: {formatPercent(row.successRate)} ·
+                          Avg: {formatDurationMs(row.averageExecutionTimeMs)}
+                        </div>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted/60">
+                        <div
+                          className="h-2 rounded-full bg-primary/70"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                No workflow usage yet. Create a run to populate insights.
+              </div>
+            )}
           </CardContent>
         </Card>
       </section>
     </div>
   );
 }
+

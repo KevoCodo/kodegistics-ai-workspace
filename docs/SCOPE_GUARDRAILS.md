@@ -3,33 +3,32 @@
 This project is a public portfolio showcase. It must remain generic, sanitized, and safe for public GitHub use.
 
 ## Strict MVP boundaries
-- Build a workflow catalog, workflow run execution simulation, logs, and results display.
-- Use deterministic, local simulation logic (no external API calls).
-- Focus on clean architecture, clarity, and demonstrability over completeness.
+- Demonstrate workflow templates, run orchestration, logs, and a clear operational dashboard UX.
+- Use deterministic, local simulation logic (no external provider calls).
+- Prefer clarity and interview-readability over scale, optimization, or production hardening.
 
-## Features not to add in early phases
+## Features intentionally out of scope
 - Authentication, authorization, SSO, or user management
 - Billing, payments, subscriptions, invoices, or usage metering
 - Multi-tenant organizations, teams, invites, or complex role/permission systems
-- Marketplace, plugin distribution, or "app store" concepts
-- Webhook ecosystems, third-party integrations, or external connectors
+- External connectors and integrations in the MVP (OpenAI, Anthropic, n8n, etc.)
+- A visual workflow builder (drag-and-drop authoring, versioning, publishing pipelines)
 - Background job infrastructure (queues/workers) beyond simple in-process simulation
-- "Production" concerns like autoscaling, rate limiting at scale, or SOC2-style controls
+- Production hardening claims (autoscaling, SOC2-style controls, etc.)
 
-## Privacy and security rules
-- Do not include secrets, API keys, tokens, or fake credentials in the repo.
-- Do not include any private business logic, internal prompts, or proprietary workflows.
-- Do not include any private company/client names, datasets, or screenshots with real data.
-- Keep sample inputs/outputs generic (e.g., "Acme Co." is fine; real entities are not).
-- Prefer safe-by-default design: validate inputs, avoid arbitrary code execution, and log defensively.
+## Provider adapter scope (Phase 11+)
+- A provider adapter interface + registry exists to demonstrate architecture readiness.
+- Only `simulated` execution is implemented and enabled.
+- Future provider types may be described in docs, but must not be implemented in the MVP.
 
-## Data rules (public GitHub safe)
-- No private business/client data.
-- No proprietary "KodeGistics OS" code, workflows, prompts, schemas, or identifiers.
-- Keep the domain language generic: "workflow", "run", "log", "result".
+## Template CRUD scope (Phase 9)
+- Template management is admin-lite CRUD only (create/edit/deactivate workflow templates).
+- This is not a production workflow automation platform and not a full authoring/builder system.
 
-## Explicit non-goals
-- No authentication in MVP unless explicitly requested later.
-- No billing/payments.
-- No team management.
-- No complex admin roles.
+## Privacy and security rules (public GitHub safe)
+- No secrets, API keys, tokens, or credentials in the repo.
+- No private business logic, internal prompts, or proprietary workflows.
+- No private company/client names, datasets, or screenshots with real data.
+- Keep sample inputs/outputs generic and sanitized.
+- Validate inputs and keep logs safe-by-default (no sensitive payloads).
+

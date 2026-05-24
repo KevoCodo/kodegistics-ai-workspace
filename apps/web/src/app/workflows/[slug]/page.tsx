@@ -99,6 +99,9 @@ export default async function WorkflowDetailPage({
           <Link className="text-sm underline" href="/workflows">
             Back to workflows
           </Link>
+          <Link className="ml-4 text-sm underline" href={`/workflows/${workflow.slug}/edit`}>
+            Edit workflow
+          </Link>
         </div>
       </section>
 
@@ -112,6 +115,9 @@ export default async function WorkflowDetailPage({
             <div className="text-xs text-muted-foreground">
               Category: <span className="font-medium">{workflow.category}</span>
             </div>
+            <div className="text-xs text-muted-foreground">
+              Provider: <span className="font-medium">{workflow.providerType}</span>
+            </div>
             <div className="rounded-lg border border-border bg-muted/60 p-3 text-xs text-muted-foreground">
               <div className="font-medium text-foreground/80">Execution concept</div>
               <div className="mt-1">
@@ -119,7 +125,8 @@ export default async function WorkflowDetailPage({
                 <code>queued</code>, transitions to <code>running</code>, and finishes
                 as <code>completed</code> (or <code>failed</code>) while emitting
                 structured logs. Execution is simulated and safe (no external AI
-                calls).
+                calls). Runs route through a provider registry so future adapters can
+                be added without changing the UI contract.
               </div>
             </div>
 

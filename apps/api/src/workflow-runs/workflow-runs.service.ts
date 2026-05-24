@@ -3,10 +3,12 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WorkflowRunStatus } from '../common/enums/workflow-run-status.enum';
+import { ProviderRegistryService } from '../providers/registry/provider-registry.service';
+import { ProviderType } from '../providers/types/provider-type';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { WorkflowLogEntity } from '../workflow-logs/workflow-log.entity';
-import { WorkflowRunEntity } from './workflow-run.entity';
 import { CreateWorkflowRunDto } from './dto/create-workflow-run.dto';
+import { WorkflowRunEntity } from './workflow-run.entity';
 
 @Injectable()
 export class WorkflowRunsService {
@@ -17,6 +19,7 @@ export class WorkflowRunsService {
     private readonly logsRepo: Repository<WorkflowLogEntity>,
     private readonly workflowsService: WorkflowsService,
     private readonly configService: ConfigService,
+    private readonly providerRegistry: ProviderRegistryService,
   ) {}
 
   async list(): Promise<WorkflowRunEntity[]> {
@@ -87,22 +90,60 @@ export class WorkflowRunsService {
       });
 
       await log('routing', `Routing to workflow runner: ${workflow.slug}`);
+
+      const providerType = workflow.providerType ?? ProviderType.Simulated;
+      const provider = this.providerRegistry.resolve(providerType);
+      await log(
+        'provider_resolved',
+        `Resolved execution provider: ${provider.getProviderName()} (${provider.getProviderType()}).`,
+      );
+      await log(
+        'provider_execution_started',
+        `Starting provider execution for workflow: ${workflow.slug}`,
+      );
+
+      provider.validatePayload({ workflow, inputPayload });
+
       await log(
         'simulated_processing',
         'Simulating processing (deterministic, no external calls).',
       );
       await log('formatting', 'Formatting simulated output payload.');
 
-      const outputPayload = this.buildSimulatedOutput(workflow.slug, inputPayload);
+      const result = await provider.execute({ workflow, inputPayload });
+      for (const entry of result.logs ?? []) {
+        await log(entry.stepName, entry.message);
+      }
+
+      await log(
+        'provider_execution_completed',
+        `Provider execution completed with status: ${result.status} (${result.executionTimeMs}ms).`,
+      );
+
       const completedAt = new Date();
 
-      await this.runsRepo.save({
-        id: savedRun.id,
-        status: WorkflowRunStatus.Completed,
-        outputPayload,
-        completedAt,
-      });
-      await log('completed', 'Workflow run completed successfully (simulated).');
+      if (result.status === WorkflowRunStatus.Completed) {
+        await this.runsRepo.save({
+          id: savedRun.id,
+          status: WorkflowRunStatus.Completed,
+          outputPayload: result.outputPayload,
+          completedAt,
+        });
+        await log(
+          'completed',
+          'Workflow run completed successfully (simulated).',
+        );
+      } else {
+        const message =
+          result.errorMessage ?? 'Workflow run failed during provider execution.';
+        await this.runsRepo.save({
+          id: savedRun.id,
+          status: WorkflowRunStatus.Failed,
+          errorMessage: message,
+          completedAt,
+        });
+        await log('failed', message);
+      }
     } catch (e) {
       const message =
         e instanceof Error ? e.message : 'Workflow run failed (simulated).';
@@ -118,11 +159,7 @@ export class WorkflowRunsService {
     return this.getById(savedRun.id);
   }
 
-  private async appendLog(
-    runId: string,
-    stepName: string,
-    message: string,
-  ) {
+  private async appendLog(runId: string, stepName: string, message: string) {
     await this.logsRepo.save(
       this.logsRepo.create({
         workflowRunId: runId,
@@ -141,7 +178,9 @@ export class WorkflowRunsService {
   }
 
   private assertInputPayloadMatchesSchema(
-    inputSchema: { fields?: Array<{ name: string; required?: boolean; type?: string }> } | null,
+    inputSchema: {
+      fields?: Array<{ name: string; required?: boolean; type?: string }>;
+    } | null,
     inputPayload: Record<string, unknown>,
   ) {
     if (!inputSchema || !Array.isArray(inputSchema.fields)) return;
@@ -155,7 +194,8 @@ export class WorkflowRunsService {
       const value = inputPayload[fieldName];
 
       if (field.required) {
-        const isEmptyString = typeof value === 'string' && value.trim().length === 0;
+        const isEmptyString =
+          typeof value === 'string' && value.trim().length === 0;
         const isMissing = value === undefined || value === null || isEmptyString;
         if (isMissing) {
           missing.push(fieldName);
@@ -181,134 +221,5 @@ export class WorkflowRunsService {
       });
     }
   }
-
-  private buildSimulatedOutput(
-    workflowSlug: string,
-    inputPayload: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const topic =
-      typeof inputPayload.topic === 'string' ? inputPayload.topic.trim() : null;
-    const audience =
-      typeof inputPayload.audience === 'string'
-        ? inputPayload.audience.trim()
-        : null;
-    const tone =
-      typeof inputPayload.tone === 'string' ? inputPayload.tone.trim() : null;
-    const reportText =
-      typeof inputPayload.reportText === 'string'
-        ? inputPayload.reportText.trim()
-        : null;
-    const notesText =
-      typeof inputPayload.notesText === 'string'
-        ? inputPayload.notesText.trim()
-        : null;
-    const intakeText =
-      typeof inputPayload.intakeText === 'string'
-        ? inputPayload.intakeText.trim()
-        : null;
-
-    const safeSnippet = (text: string, maxLen: number) =>
-      text.length <= maxLen ? text : `${text.slice(0, maxLen).trim()}…`;
-
-    const normalizeLines = (text: string) =>
-      text
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .slice(0, 12);
-
-    switch (workflowSlug) {
-      case 'blog-draft':
-        {
-          const titleBase = topic ?? 'Sample topic';
-          const audienceText = audience ?? 'a general technical audience';
-          const toneText = tone ?? 'Clear and practical';
-          const outline = [
-            `Why ${titleBase} matters`,
-            'Core concepts',
-            'Common pitfalls',
-            'A simple implementation approach',
-            'Next steps',
-          ];
-        return {
-            title: `Blog Draft: ${titleBase}`,
-            meta: {
-              audience: audienceText,
-              tone: toneText,
-            },
-            outline,
-            draft: [
-              `This is a simulated blog draft about ${titleBase}.`,
-              `Target audience: ${audienceText}. Tone: ${toneText}.`,
-              '',
-              `Intro: ${titleBase} is a useful pattern for turning repeatable work into consistent outcomes.`,
-              'Key points: define inputs/outputs, track run state, and log every step for observability.',
-              'Conclusion: start with simulation, then add optional integrations behind feature flags.',
-            ].join('\n'),
-        };
-        }
-      case 'report-summary':
-        {
-          const base = reportText ?? 'Report text not provided';
-          const snippet = safeSnippet(base, 220);
-        return {
-            summary: `Simulated summary based on the provided report text: ${snippet}`,
-            keyPoints: [
-              'Key trend: a notable change over the reporting period.',
-              'Risk: a potential blocker requiring attention.',
-              'Opportunity: an area to optimize or automate.',
-            ],
-            actionItems: [
-              'Validate assumptions and confirm data sources.',
-              'Assign an owner to the highest-risk item.',
-              'Draft a short follow-up plan with next steps.',
-            ],
-        };
-        }
-      case 'intake-classification':
-        {
-          const text = (intakeText ?? '').toLowerCase();
-          const hasUrgent = /urgent|asap|immediately|critical/.test(text);
-          const hasBug = /bug|error|broken|issue|incident/.test(text);
-          const hasChange = /change|request|feature|enhancement/.test(text);
-
-          const category = hasBug
-            ? 'Incident'
-            : hasChange
-              ? 'Change Request'
-              : 'General Inquiry';
-          const priority = hasUrgent ? 'High' : hasBug ? 'Medium' : 'Low';
-          const confidence = hasUrgent || hasBug || hasChange ? 0.78 : 0.55;
-
-        return {
-            category,
-            priority,
-            confidence,
-            rationale: 'Simulated classification using deterministic keyword rules.',
-        };
-        }
-      case 'meeting-summary':
-        {
-          const lines = notesText ? normalizeLines(notesText) : [];
-          const bullets = lines.map((l) => l.replace(/^[-*]\s*/, ''));
-        return {
-            summary:
-              bullets.length > 0
-                ? `Simulated meeting summary based on ${bullets.length} note items.`
-                : 'Simulated meeting summary based on the provided notes.',
-            decisions: bullets.slice(0, 2),
-            nextSteps: [
-              'Confirm owners for each action item.',
-              'Schedule a short follow-up check-in.',
-              'Publish the recap to the team channel.',
-            ],
-        };
-        }
-      default:
-        return {
-          summary: 'Simulated output generated for this workflow.',
-          workflowSlug,
-        };
-    }
-  }
 }
+
