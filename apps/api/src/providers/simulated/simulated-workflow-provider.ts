@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { WorkflowRunStatus } from '../../common/enums/workflow-run-status.enum';
 import { WorkflowEntity } from '../../workflows/workflow.entity';
-import { WorkflowExecutionProvider, type ProviderExecuteParams } from '../interfaces/workflow-execution-provider';
+import {
+  WorkflowExecutionProvider,
+  type ProviderExecuteParams,
+} from '../interfaces/workflow-execution-provider';
 import { ProviderExecutionResult } from '../types/provider-execution.types';
 import { ProviderType } from '../types/provider-type';
 
@@ -15,48 +18,56 @@ export class SimulatedWorkflowProvider implements WorkflowExecutionProvider {
     return 'SimulatedWorkflowProvider';
   }
 
-  validatePayload(_params: ProviderExecuteParams): void {
+  validatePayload(): void {
     // Workflow-level schema validation is handled by the orchestrator.
   }
 
-  async execute(params: ProviderExecuteParams): Promise<ProviderExecutionResult> {
+  execute(params: ProviderExecuteParams): Promise<ProviderExecutionResult> {
     const started = Date.now();
     const logs: ProviderExecutionResult['logs'] = [];
 
     try {
       logs.push({
-        stepName: 'provider_simulated_execute',
-        message: `Executing workflow via simulated provider: ${params.workflow.slug}`,
+        stepName: 'simulated_processing',
+        message: 'Simulating processing (deterministic, no external calls).',
       });
 
-      const outputPayload = this.buildSimulatedOutput(params.workflow, params.inputPayload);
+      const outputPayload = this.buildSimulatedOutput(
+        params.workflow,
+        params.inputPayload,
+      );
+      logs.push({
+        stepName: 'formatting',
+        message: 'Formatting simulated output payload.',
+      });
 
-      return {
+      const executionTimeMs = Date.now() - started;
+      return Promise.resolve({
         status: WorkflowRunStatus.Completed,
         outputPayload,
-        executionTimeMs: Date.now() - started,
-        metadata: {
-          providerType: this.getProviderType(),
-          providerName: this.getProviderName(),
-          simulated: true,
-        },
+        errorMessage: null,
+        executionTimeMs,
+        metadata: this.buildMetadata(
+          executionTimeMs,
+          WorkflowRunStatus.Completed,
+        ),
         logs,
-      };
+      });
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Provider execution failed (simulated).';
+      const message =
+        e instanceof Error
+          ? e.message
+          : 'Provider execution failed (simulated).';
       logs.push({ stepName: 'provider_simulated_error', message });
-      return {
+      const executionTimeMs = Date.now() - started;
+      return Promise.resolve({
         status: WorkflowRunStatus.Failed,
         outputPayload: null,
         errorMessage: message,
-        executionTimeMs: Date.now() - started,
-        metadata: {
-          providerType: this.getProviderType(),
-          providerName: this.getProviderName(),
-          simulated: true,
-        },
+        executionTimeMs,
+        metadata: this.buildMetadata(executionTimeMs, WorkflowRunStatus.Failed),
         logs,
-      };
+      });
     }
   }
 
@@ -86,6 +97,8 @@ export class SimulatedWorkflowProvider implements WorkflowExecutionProvider {
       typeof inputPayload.intakeText === 'string'
         ? inputPayload.intakeText.trim()
         : null;
+    const notes =
+      typeof inputPayload.notes === 'string' ? inputPayload.notes.trim() : null;
 
     const safeSnippet = (text: string, maxLen: number) =>
       text.length <= maxLen ? text : `${text.slice(0, maxLen).trim()}...`;
@@ -161,7 +174,8 @@ export class SimulatedWorkflowProvider implements WorkflowExecutionProvider {
           category,
           priority,
           confidence,
-          rationale: 'Simulated classification using deterministic keyword rules.',
+          rationale:
+            'Simulated classification using deterministic keyword rules.',
         };
       }
       case 'meeting-summary': {
@@ -180,11 +194,43 @@ export class SimulatedWorkflowProvider implements WorkflowExecutionProvider {
           ],
         };
       }
+      case 'ai-business-summary': {
+        const notesItems = notes ? normalizeLines(notes) : [];
+        return {
+          headline:
+            'Business Summary: Current status and recommended next step',
+          audience: audience ?? 'Business stakeholders',
+          tone: tone ?? 'Professional',
+          executiveSummary:
+            notesItems.length > 0
+              ? `Simulated summary based on ${notesItems.length} structured note item${notesItems.length === 1 ? '' : 's'}.`
+              : 'Simulated summary prepared from the supplied business notes.',
+          highlights: notesItems.slice(0, 3),
+          recommendedActions: [
+            'Confirm the highest-priority open item and its owner.',
+            'Share a concise status update with the intended audience.',
+            'Schedule the next review point and capture decisions.',
+          ],
+        };
+      }
       default:
         return {
           summary: 'Simulated output generated for this workflow.',
           workflowSlug,
         };
     }
+  }
+
+  private buildMetadata(
+    executionTimeMs: number,
+    status: WorkflowRunStatus.Completed | WorkflowRunStatus.Failed,
+  ): Record<string, unknown> {
+    return {
+      provider: this.getProviderType(),
+      executionTimeMs,
+      status,
+      timestamp: new Date().toISOString(),
+      simulated: true,
+    };
   }
 }

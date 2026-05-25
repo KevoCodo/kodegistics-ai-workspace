@@ -8,7 +8,7 @@ export type ProviderLogEntry = {
 export type ProviderExecutionResult = {
   status: WorkflowRunStatus.Completed | WorkflowRunStatus.Failed;
   outputPayload: Record<string, unknown> | null;
-  errorMessage?: string;
+  errorMessage: string | null;
   executionTimeMs: number;
   metadata: Record<string, unknown>;
   logs: ProviderLogEntry[];
