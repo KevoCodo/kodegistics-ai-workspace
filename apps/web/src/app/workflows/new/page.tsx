@@ -26,8 +26,9 @@ export default function NewWorkflowPage() {
       <section className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">New workflow</h1>
         <div className="text-sm text-muted-foreground">
-          Create a lightweight workflow template for the catalog. Execution remains
-          simulated in the MVP.
+          Create a lightweight workflow template for the catalog. Simulated
+          execution is recommended; OpenAI is optional and requires backend
+          configuration.
         </div>
         <div className="text-sm">
           <Link className="underline" href="/workflows">

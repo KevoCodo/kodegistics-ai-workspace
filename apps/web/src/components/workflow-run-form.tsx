@@ -2,15 +2,25 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { api, type WorkflowFieldSchema, type WorkflowRun } from "../lib/api";
-import { Badge } from "./ui/badge";
+import {
+  api,
+  type ProviderType,
+  type WorkflowFieldSchema,
+  type WorkflowRun,
+} from "../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { RunStatusBadge } from "./status-badges";
+
+const OPENAI_CONFIGURATION_MESSAGE =
+  "OpenAI provider is not enabled for this local environment. Use simulated provider or configure the backend environment variables.";
 
 export function WorkflowRunForm({
   workflowSlug,
+  providerType,
   fields,
 }: {
   workflowSlug: string;
+  providerType: ProviderType;
   fields: WorkflowFieldSchema[];
 }) {
   const [formValues, setFormValues] = useState<Record<string, string>>({});
@@ -95,9 +105,14 @@ export function WorkflowRunForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Run this workflow (simulated)</CardTitle>
+        <CardTitle>Run this workflow ({providerType})</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="text-xs text-muted-foreground">
+          {providerType === "simulated"
+            ? "Local demo execution with deterministic output."
+            : "Optional real provider execution. Availability depends on backend environment configuration."}
+        </div>
         {!hasFields ? (
           <div className="text-sm text-muted-foreground">
             No input fields defined for this workflow.
@@ -151,7 +166,9 @@ export function WorkflowRunForm({
                   />
                 )}
                 {formErrors[field.name] ? (
-                  <div className="text-xs text-rose-700">{formErrors[field.name]}</div>
+                  <div className="text-xs text-rose-700">
+                    {formErrors[field.name]}
+                  </div>
                 ) : (
                   <div className="text-xs text-muted-foreground">
                     {field.type === "json" ? "Provide valid JSON." : " "}
@@ -166,20 +183,39 @@ export function WorkflowRunForm({
                 disabled={submitState.kind === "submitting"}
                 className="inline-flex items-center rounded-md border border-border bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90 disabled:opacity-60"
               >
-                {submitState.kind === "submitting" ? "Creating run..." : "Create run"}
+                {submitState.kind === "submitting"
+                  ? "Creating run..."
+                  : "Create run"}
               </button>
               {submitState.kind === "success" ? (
-                <Link className="text-sm underline" href={`/runs/${submitState.run.id}`}>
+                <Link
+                  className="text-sm underline"
+                  href={`/runs/${submitState.run.id}`}
+                >
                   View run details
                 </Link>
               ) : null}
               {submitState.kind === "error" ? (
-                <div className="text-sm text-rose-700">{submitState.message}</div>
+                <div className="text-sm text-rose-700">
+                  {submitState.message}
+                </div>
               ) : null}
               {submitState.kind === "success" ? (
-                <Badge variant="success">Run created</Badge>
+                <RunStatusBadge status={submitState.run.status} />
               ) : null}
             </div>
+            {submitState.kind === "success" &&
+            submitState.run.status === "failed" &&
+            providerType === "openai" &&
+            (submitState.run.errorMessage === OPENAI_CONFIGURATION_MESSAGE ||
+              submitState.run.errorMessage?.includes("OPENAI_API_KEY") ||
+              submitState.run.errorMessage?.includes(
+                "OpenAI provider is disabled",
+              )) ? (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30">
+                {OPENAI_CONFIGURATION_MESSAGE}
+              </div>
+            ) : null}
           </form>
         )}
       </CardContent>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
+  ProviderStatus,
   ProviderType,
   Workflow,
   WorkflowFieldSchema,
@@ -9,6 +10,8 @@ import type {
   WorkflowStatus,
 } from "../lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Badge } from "./ui/badge";
+import { api } from "../lib/api";
 
 export type WorkflowTemplateDraft = {
   name: string;
@@ -35,7 +38,9 @@ function asFieldDrafts(schema: WorkflowInputSchema): FieldDraft[] {
   return (schema.fields ?? []).map((f) => ({
     ...f,
     optionsCsv:
-      f.type === "select" ? (f.options ?? []).map((o) => o.value).join(", ") : "",
+      f.type === "select"
+        ? (f.options ?? []).map((o) => o.value).join(", ")
+        : "",
   }));
 }
 
@@ -82,6 +87,26 @@ export function WorkflowTemplateEditor({
     | { kind: "success"; workflow: Workflow }
     | { kind: "error"; message: string }
   >({ kind: "idle" });
+  const [providers, setProviders] = useState<ProviderStatus[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api
+      .listProviders()
+      .then((result) => {
+        if (!cancelled) setProviders(result);
+      })
+      .catch(() => {
+        if (!cancelled) setProviders([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedProviderStatus = providers.find(
+    (provider) => provider.type === draft.providerType,
+  );
 
   const errors = useMemo(() => {
     const next: Record<string, string> = {};
@@ -120,7 +145,8 @@ export function WorkflowTemplateEditor({
       });
       setState({ kind: "success", workflow });
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Failed to save workflow";
+      const message =
+        e instanceof Error ? e.message : "Failed to save workflow";
       setState({ kind: "error", message });
     }
   }
@@ -130,7 +156,9 @@ export function WorkflowTemplateEditor({
       <Card>
         <CardHeader>
           <CardTitle>
-            {mode === "create" ? "Create workflow template" : "Edit workflow template"}
+            {mode === "create"
+              ? "Create workflow template"
+              : "Edit workflow template"}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -186,7 +214,9 @@ export function WorkflowTemplateEditor({
                 }
               />
               {errors.description ? (
-                <div className="text-xs text-rose-700">{errors.description}</div>
+                <div className="text-xs text-rose-700">
+                  {errors.description}
+                </div>
               ) : null}
             </div>
 
@@ -246,11 +276,29 @@ export function WorkflowTemplateEditor({
                   }))
                 }
               >
-                <option value="simulated">Simulated (safe, deterministic)</option>
+                <option value="simulated">
+                  Simulated (safe, deterministic)
+                </option>
+                <option value="openai">OpenAI (optional real provider)</option>
               </select>
-              <div className="text-xs text-muted-foreground">
-                Provider adapters are an architecture readiness layer. Only simulated
-                execution is enabled in the MVP.
+              <div className="space-y-2 text-xs text-muted-foreground">
+                <div>
+                  Simulated provider is recommended for public demo usage.
+                  OpenAI provider requires backend environment configuration.
+                </div>
+                {selectedProviderStatus ? (
+                  <Badge
+                    variant={
+                      selectedProviderStatus.status === "active" ||
+                      selectedProviderStatus.status === "enabled"
+                        ? "success"
+                        : "warning"
+                    }
+                  >
+                    {selectedProviderStatus.type}:{" "}
+                    {selectedProviderStatus.status}
+                  </Badge>
+                ) : null}
               </div>
             </div>
           </div>
@@ -276,7 +324,10 @@ export function WorkflowTemplateEditor({
                 >
                   <div className="grid gap-3 md:grid-cols-12">
                     <div className="space-y-1 md:col-span-3">
-                      <label className="text-xs font-medium" htmlFor={`${key}_name`}>
+                      <label
+                        className="text-xs font-medium"
+                        htmlFor={`${key}_name`}
+                      >
                         Field name
                       </label>
                       <input
@@ -286,17 +337,24 @@ export function WorkflowTemplateEditor({
                         onChange={(e) => {
                           const value = e.target.value;
                           setFields((prev) =>
-                            prev.map((f, i) => (i === idx ? { ...f, name: value } : f)),
+                            prev.map((f, i) =>
+                              i === idx ? { ...f, name: value } : f,
+                            ),
                           );
                         }}
                       />
                       {errors[`${key}_name`] ? (
-                        <div className="text-xs text-rose-700">{errors[`${key}_name`]}</div>
+                        <div className="text-xs text-rose-700">
+                          {errors[`${key}_name`]}
+                        </div>
                       ) : null}
                     </div>
 
                     <div className="space-y-1 md:col-span-4">
-                      <label className="text-xs font-medium" htmlFor={`${key}_label`}>
+                      <label
+                        className="text-xs font-medium"
+                        htmlFor={`${key}_label`}
+                      >
                         Label
                       </label>
                       <input
@@ -306,17 +364,24 @@ export function WorkflowTemplateEditor({
                         onChange={(e) => {
                           const value = e.target.value;
                           setFields((prev) =>
-                            prev.map((f, i) => (i === idx ? { ...f, label: value } : f)),
+                            prev.map((f, i) =>
+                              i === idx ? { ...f, label: value } : f,
+                            ),
                           );
                         }}
                       />
                       {errors[`${key}_label`] ? (
-                        <div className="text-xs text-rose-700">{errors[`${key}_label`]}</div>
+                        <div className="text-xs text-rose-700">
+                          {errors[`${key}_label`]}
+                        </div>
                       ) : null}
                     </div>
 
                     <div className="space-y-1 md:col-span-3">
-                      <label className="text-xs font-medium" htmlFor={`${key}_type`}>
+                      <label
+                        className="text-xs font-medium"
+                        htmlFor={`${key}_type`}
+                      >
                         Type
                       </label>
                       <select
@@ -324,9 +389,12 @@ export function WorkflowTemplateEditor({
                         className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         value={field.type}
                         onChange={(e) => {
-                          const value = e.target.value as WorkflowFieldSchema["type"];
+                          const value = e.target
+                            .value as WorkflowFieldSchema["type"];
                           setFields((prev) =>
-                            prev.map((f, i) => (i === idx ? { ...f, type: value } : f)),
+                            prev.map((f, i) =>
+                              i === idx ? { ...f, type: value } : f,
+                            ),
                           );
                         }}
                       >
@@ -336,7 +404,9 @@ export function WorkflowTemplateEditor({
                         <option value="select">Select</option>
                       </select>
                       {errors[`${key}_type`] ? (
-                        <div className="text-xs text-rose-700">{errors[`${key}_type`]}</div>
+                        <div className="text-xs text-rose-700">
+                          {errors[`${key}_type`]}
+                        </div>
                       ) : null}
                     </div>
 
@@ -371,7 +441,10 @@ export function WorkflowTemplateEditor({
 
                   {field.type === "select" ? (
                     <div className="mt-3 space-y-1">
-                      <label className="text-xs font-medium" htmlFor={`${key}_options`}>
+                      <label
+                        className="text-xs font-medium"
+                        htmlFor={`${key}_options`}
+                      >
                         Options (comma-separated)
                       </label>
                       <input

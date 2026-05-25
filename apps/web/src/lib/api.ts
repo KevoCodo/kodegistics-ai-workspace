@@ -5,7 +5,26 @@ export type ApiError = {
 
 export type WorkflowStatus = "active" | "inactive";
 export type WorkflowRunStatus = "queued" | "running" | "completed" | "failed";
-export type ProviderType = "simulated";
+export type ProviderType = "simulated" | "openai";
+export type ProviderAvailabilityStatus =
+  | "active"
+  | "disabled"
+  | "enabled"
+  | "missing_api_key";
+
+export type ProviderStatus = {
+  type: ProviderType;
+  status: ProviderAvailabilityStatus;
+  default: boolean;
+};
+
+export type ProviderMetadata = {
+  provider: ProviderType;
+  model?: string;
+  executionTimeMs?: number;
+  status?: WorkflowRunStatus;
+  timestamp?: string;
+};
 
 export type WorkflowFieldSchema = {
   name: string;
@@ -174,6 +193,9 @@ export const api = {
   async listWorkflows(): Promise<Workflow[]> {
     return fetchJson("/workflows", { cache: "no-store" });
   },
+  async listProviders(): Promise<ProviderStatus[]> {
+    return fetchJson("/providers", { cache: "no-store" });
+  },
   async getWorkflow(slug: string): Promise<Workflow> {
     return fetchJson(`/workflows/${encodeURIComponent(slug)}`, {
       cache: "no-store",
@@ -210,7 +232,9 @@ export const api = {
     });
   },
   async deactivateWorkflow(id: string): Promise<Workflow> {
-    return fetchJson(`/workflows/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return fetchJson(`/workflows/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
   },
   async analyticsOverview(): Promise<AnalyticsOverview> {
     return fetchJson("/analytics/overview", { cache: "no-store" });

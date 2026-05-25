@@ -1,11 +1,17 @@
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../../../components/ui/card";
 import { JsonBlock } from "../../../components/json-block";
 import { WorkflowStatusBadge } from "../../../components/status-badges";
 import { WorkflowRunForm } from "../../../components/workflow-run-form";
 import {
   getApiBaseUrl,
   getApiBaseUrlOrThrow,
+  type ProviderStatus,
   type Workflow,
   type WorkflowFieldSchema,
 } from "../../../lib/api";
@@ -21,6 +27,17 @@ async function getWorkflow(slug: string): Promise<Workflow> {
   return (await res.json()) as Workflow;
 }
 
+async function getProviders(): Promise<ProviderStatus[]> {
+  try {
+    const baseUrl = getApiBaseUrlOrThrow();
+    const res = await fetch(`${baseUrl}/providers`, { cache: "no-store" });
+    if (!res.ok) return [];
+    return (await res.json()) as ProviderStatus[];
+  } catch {
+    return [];
+  }
+}
+
 export default async function WorkflowDetailPage({
   params,
 }: {
@@ -29,10 +46,14 @@ export default async function WorkflowDetailPage({
   const { slug } = await params;
   const apiBaseUrl = getApiBaseUrl();
   let workflow: Workflow | null = null;
+  let providers: ProviderStatus[] = [];
   let errorMessage: string | null = null;
 
   try {
-    workflow = await getWorkflow(slug);
+    [workflow, providers] = await Promise.all([
+      getWorkflow(slug),
+      getProviders(),
+    ]);
   } catch (e) {
     errorMessage = e instanceof Error ? e.message : "Failed to load workflow";
   }
@@ -65,11 +86,14 @@ export default async function WorkflowDetailPage({
               <code>NEXT_PUBLIC_API_URL</code>.
             </div>
             <div className="text-xs text-rose-700">
-              Current API base URL: <code>{apiBaseUrl ?? "not configured"}</code>
+              Current API base URL:{" "}
+              <code>{apiBaseUrl ?? "not configured"}</code>
             </div>
             {errorMessage ? (
               <details className="pt-2 text-xs text-rose-700">
-                <summary className="cursor-pointer select-none">Details</summary>
+                <summary className="cursor-pointer select-none">
+                  Details
+                </summary>
                 <div className="mt-2 whitespace-pre-wrap">{errorMessage}</div>
               </details>
             ) : null}
@@ -80,6 +104,9 @@ export default async function WorkflowDetailPage({
   }
 
   const fields: WorkflowFieldSchema[] = workflow.inputSchema?.fields ?? [];
+  const providerStatus = providers.find(
+    (provider) => provider.type === workflow.providerType,
+  );
 
   return (
     <div className="space-y-8">
@@ -99,7 +126,10 @@ export default async function WorkflowDetailPage({
           <Link className="text-sm underline" href="/workflows">
             Back to workflows
           </Link>
-          <Link className="ml-4 text-sm underline" href={`/workflows/${workflow.slug}/edit`}>
+          <Link
+            className="ml-4 text-sm underline"
+            href={`/workflows/${workflow.slug}/edit`}
+          >
             Edit workflow
           </Link>
         </div>
@@ -111,37 +141,74 @@ export default async function WorkflowDetailPage({
             <CardTitle>Overview</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="text-sm text-muted-foreground">{workflow.description}</div>
+            <div className="text-sm text-muted-foreground">
+              {workflow.description}
+            </div>
             <div className="text-xs text-muted-foreground">
               Category: <span className="font-medium">{workflow.category}</span>
             </div>
             <div className="text-xs text-muted-foreground">
-              Provider: <span className="font-medium">{workflow.providerType}</span>
+              Provider:{" "}
+              <span className="font-medium">{workflow.providerType}</span>
+              {providerStatus ? (
+                <span className="ml-2 rounded-full border border-border px-2 py-0.5">
+                  {providerStatus.status}
+                </span>
+              ) : null}
             </div>
             <div className="rounded-lg border border-border bg-muted/60 p-3 text-xs text-muted-foreground">
-              <div className="font-medium text-foreground/80">Execution concept</div>
+              <div className="font-medium text-foreground/80">
+                Execution concept
+              </div>
               <div className="mt-1">
                 Creating a run validates the input payload, sets the run to{" "}
-                <code>queued</code>, transitions to <code>running</code>, and finishes
-                as <code>completed</code> (or <code>failed</code>) while emitting
-                structured logs. Execution is simulated and safe (no external AI
-                calls). Runs route through a provider registry so future adapters can
-                be added without changing the UI contract.
+                <code>queued</code>, transitions to <code>running</code>, and
+                finishes as <code>completed</code> (or <code>failed</code>)
+                while emitting structured logs. Runs route through a provider
+                registry so the execution adapter can be selected without
+                changing the run contract. Simulated execution remains the
+                recommended public demo path.
               </div>
             </div>
 
-            <WorkflowRunForm workflowSlug={workflow.slug} fields={fields} />
+            <WorkflowRunForm
+              workflowSlug={workflow.slug}
+              providerType={workflow.providerType}
+              fields={fields}
+            />
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle>Input Schema</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <JsonBlock value={workflow.inputSchema} />
-          </CardContent>
-        </Card>
+        <div className="space-y-6 md:col-span-1">
+          <Card>
+            <CardHeader>
+              <CardTitle>Provider</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <div>
+                <code>simulated</code> = local demo execution with deterministic
+                output.
+              </div>
+              <div>
+                <code>openai</code> = optional real provider adapter that
+                requires backend environment configuration.
+              </div>
+              <div className="text-xs">
+                Selected: <code>{workflow.providerType}</code>
+                {providerStatus ? ` (${providerStatus.status})` : ""}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Input Schema</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <JsonBlock value={workflow.inputSchema} />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

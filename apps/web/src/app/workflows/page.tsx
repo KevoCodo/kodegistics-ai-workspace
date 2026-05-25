@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { api, type Workflow } from "../../lib/api";
 import { Badge } from "../../components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/card";
 import { WorkflowStatusBadge } from "../../components/status-badges";
 
 type State =
@@ -24,7 +29,8 @@ export default function WorkflowsPage() {
         setState({ kind: "ready", workflows });
       } catch (e) {
         if (cancelled) return;
-        const message = e instanceof Error ? e.message : "Failed to load workflows";
+        const message =
+          e instanceof Error ? e.message : "Failed to load workflows";
         setState({ kind: "error", message });
       }
     }
@@ -42,7 +48,9 @@ export default function WorkflowsPage() {
       list.push(w);
       byCategory.set(w.category, list);
     }
-    return Array.from(byCategory.entries()).sort(([a], [b]) => a.localeCompare(b));
+    return Array.from(byCategory.entries()).sort(([a], [b]) =>
+      a.localeCompare(b),
+    );
   }, [state]);
 
   return (
@@ -52,9 +60,10 @@ export default function WorkflowsPage() {
           <div className="space-y-2">
             <h1 className="text-2xl font-semibold tracking-tight">Workflows</h1>
             <p className="max-w-3xl text-sm text-muted-foreground">
-              Workflow templates define expected inputs, categories, and a safe execution
-              contract. Open any workflow to submit inputs and create a simulated run with
-              logs and a generated output payload.
+              Workflow templates define expected inputs, categories, and a safe
+              execution contract. Open any workflow to submit inputs and create
+              a run through its selected provider, with simulation recommended
+              for public demos.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -69,20 +78,25 @@ export default function WorkflowsPage() {
       </section>
 
       {state.kind === "loading" && (
-        <div className="text-sm text-muted-foreground">Loading workflows...</div>
+        <div className="text-sm text-muted-foreground">
+          Loading workflows...
+        </div>
       )}
 
       {state.kind === "error" && (
         <Card className="border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30">
           <CardHeader>
-            <CardTitle className="text-rose-800">Failed to load workflows</CardTitle>
+            <CardTitle className="text-rose-800">
+              Failed to load workflows
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-sm text-rose-800">
               Unable to reach the API to load workflows.
             </div>
             <div className="mt-2 text-xs text-rose-700">
-              Check <code>NEXT_PUBLIC_API_URL</code> and that the API is running.
+              Check <code>NEXT_PUBLIC_API_URL</code> and that the API is
+              running.
             </div>
             <details className="mt-3 text-xs text-rose-700">
               <summary className="cursor-pointer select-none">Details</summary>
@@ -99,8 +113,8 @@ export default function WorkflowsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-sm text-muted-foreground">
-              The API seeds default workflows on startup. Ensure Postgres is running and
-              the API has started successfully.
+              The API seeds default workflows on startup. Ensure Postgres is
+              running and the API has started successfully.
             </div>
           </CardContent>
         </Card>
@@ -146,7 +160,9 @@ export default function WorkflowsPage() {
                       </div>
                     </CardHeader>
                     <CardContent className="flex flex-1 flex-col justify-between gap-4">
-                      <p className="text-sm text-muted-foreground">{w.description}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {w.description}
+                      </p>
                       <div>
                         <Link
                           href={`/workflows/${w.slug}`}

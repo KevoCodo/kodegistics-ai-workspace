@@ -9,11 +9,22 @@ import {
   type AnalyticsRecentActivityRow,
   type AnalyticsStatusBreakdown,
   type AnalyticsWorkflowUsageRow,
+  type ProviderType,
+  type WorkflowRun,
 } from "../lib/api";
 import { Badge } from "../components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
 import { RunStatusBadge } from "../components/status-badges";
-import { formatDateTime, formatDurationMs, formatRelativeTime } from "../lib/time";
+import {
+  formatDateTime,
+  formatDurationMs,
+  formatRelativeTime,
+} from "../lib/time";
 
 type DashboardState =
   | { kind: "loading" }
@@ -25,6 +36,7 @@ type DashboardState =
       recent: AnalyticsRecentActivityRow[];
       usage: AnalyticsWorkflowUsageRow[];
       breakdown: AnalyticsStatusBreakdown;
+      providerCounts: Record<ProviderType, number>;
     };
 
 function formatCount(n: number) {
@@ -36,6 +48,19 @@ function formatPercent(n: number) {
   return `${n.toFixed(1)}%`;
 }
 
+function countRunsByProvider(
+  runs: WorkflowRun[],
+): Record<ProviderType, number> {
+  return runs.reduce(
+    (counts, run) => {
+      const provider = run.workflow?.providerType ?? "simulated";
+      counts[provider] += 1;
+      return counts;
+    },
+    { simulated: 0, openai: 0 } as Record<ProviderType, number>,
+  );
+}
+
 export default function DashboardPage() {
   const [state, setState] = useState<DashboardState>({ kind: "loading" });
   const apiBaseUrl = getApiBaseUrl();
@@ -44,13 +69,15 @@ export default function DashboardPage() {
     let cancelled = false;
     async function load() {
       try {
-        const [health, overview, usage, recent, breakdown] = await Promise.all([
-          api.health().catch(() => null),
-          api.analyticsOverview(),
-          api.analyticsWorkflowUsage(),
-          api.analyticsRecentActivity(),
-          api.analyticsStatusBreakdown(),
-        ]);
+        const [health, overview, usage, recent, breakdown, runs] =
+          await Promise.all([
+            api.health().catch(() => null),
+            api.analyticsOverview(),
+            api.analyticsWorkflowUsage(),
+            api.analyticsRecentActivity(),
+            api.analyticsStatusBreakdown(),
+            api.listRuns(),
+          ]);
         if (cancelled) return;
         setState({
           kind: "ready",
@@ -59,6 +86,7 @@ export default function DashboardPage() {
           usage,
           recent,
           breakdown,
+          providerCounts: countRunsByProvider(runs),
         });
       } catch (e) {
         if (cancelled) return;
@@ -98,12 +126,14 @@ export default function DashboardPage() {
           <div className="space-y-3">
             <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
             <p className="max-w-3xl text-base text-muted-foreground">
-              Operational overview of workflow health, run lifecycle state, and observable
-              execution logs. Execution is simulated only (no external AI calls).
+              Operational overview of workflow health, run lifecycle state, and
+              observable execution logs. Simulated execution remains the
+              default; optional OpenAI execution is explicitly configured.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="neutral">Public showcase</Badge>
               <Badge variant="neutral">Simulated execution</Badge>
+              <Badge variant="neutral">Optional OpenAI adapter</Badge>
               <Badge variant="neutral">No auth in MVP</Badge>
               {state.kind === "ready" ? (
                 <Badge variant={state.apiOk ? "success" : "neutral"}>
@@ -138,11 +168,14 @@ export default function DashboardPage() {
           <CardContent className="space-y-2 text-sm text-rose-800">
             <div>{state.message}</div>
             <div className="text-xs text-rose-700">
-              Current API base URL: <code>{apiBaseUrl ?? "not configured"}</code>
+              Current API base URL:{" "}
+              <code>{apiBaseUrl ?? "not configured"}</code>
             </div>
             {state.details ? (
               <details className="pt-2 text-xs text-rose-700">
-                <summary className="cursor-pointer select-none">Details</summary>
+                <summary className="cursor-pointer select-none">
+                  Details
+                </summary>
                 <div className="mt-2 whitespace-pre-wrap">{state.details}</div>
               </details>
             ) : null}
@@ -157,7 +190,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold tracking-tight">
-              {state.kind === "ready" ? formatCount(state.overview.totalWorkflows) : "-"}
+              {state.kind === "ready"
+                ? formatCount(state.overview.totalWorkflows)
+                : "-"}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {state.kind === "ready"
@@ -173,7 +208,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold tracking-tight">
-              {state.kind === "ready" ? formatCount(state.overview.activeWorkflows) : "-"}
+              {state.kind === "ready"
+                ? formatCount(state.overview.activeWorkflows)
+                : "-"}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {state.kind === "ready"
@@ -189,7 +226,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold tracking-tight">
-              {state.kind === "ready" ? formatCount(state.overview.totalRuns) : "-"}
+              {state.kind === "ready"
+                ? formatCount(state.overview.totalRuns)
+                : "-"}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {state.kind === "ready"
@@ -205,7 +244,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold tracking-tight">
-              {state.kind === "ready" ? formatCount(state.overview.failedRuns) : "-"}
+              {state.kind === "ready"
+                ? formatCount(state.overview.failedRuns)
+                : "-"}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {state.kind === "ready"
@@ -223,7 +264,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-semibold tracking-tight">
-              {state.kind === "ready" ? formatPercent(state.overview.successRate) : "-"}
+              {state.kind === "ready"
+                ? formatPercent(state.overview.successRate)
+                : "-"}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               {state.kind === "ready"
@@ -291,10 +334,13 @@ export default function DashboardPage() {
                       className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
                     >
                       <div className="min-w-0">
-                        <div className="truncate font-medium">{row.workflowName}</div>
+                        <div className="truncate font-medium">
+                          {row.workflowName}
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           <code>{row.workflowSlug}</code> ·{" "}
-                          {formatRelativeTime(row.createdAt)} · {formatDateTime(row.createdAt)}
+                          {formatRelativeTime(row.createdAt)} ·{" "}
+                          {formatDateTime(row.createdAt)}
                         </div>
                       </div>
                       <RunStatusBadge status={row.status} />
@@ -321,31 +367,74 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {state.kind === "ready" ? (
-              (["queued", "running", "completed", "failed"] as const).map((k) => {
-                const count = state.breakdown[k];
-                const pct =
-                  summary!.totalByStatus > 0
-                    ? Math.round((count / summary!.totalByStatus) * 100)
-                    : 0;
-                return (
-                  <div key={k} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="capitalize">{k}</span>
-                      <span>
-                        {count} ({pct}%)
-                      </span>
+              (["queued", "running", "completed", "failed"] as const).map(
+                (k) => {
+                  const count = state.breakdown[k];
+                  const pct =
+                    summary!.totalByStatus > 0
+                      ? Math.round((count / summary!.totalByStatus) * 100)
+                      : 0;
+                  return (
+                    <div key={k} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="capitalize">{k}</span>
+                        <span>
+                          {count} ({pct}%)
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted/60">
+                        <div
+                          className="h-2 rounded-full bg-primary/70"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 w-full rounded-full bg-muted/60">
-                      <div
-                        className="h-2 rounded-full bg-primary/70"
-                        style={{ width: `${pct}%` }}
-                      />
+                  );
+                },
+              )
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                Loading breakdown...
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Provider Usage</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              Runs grouped by their workflow&apos;s configured provider.
+              Simulated remains the recommended public demo default.
+            </div>
+            {state.kind === "ready" ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {(["simulated", "openai"] as const).map((provider) => (
+                  <div
+                    key={provider}
+                    className="rounded-lg border border-border bg-background/40 p-3"
+                  >
+                    <div className="text-xs text-muted-foreground">
+                      {provider}
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold tracking-tight">
+                      {formatCount(state.providerCounts[provider])}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      configured run
+                      {state.providerCounts[provider] === 1 ? "" : "s"}
                     </div>
                   </div>
-                );
-              })
+                ))}
+              </div>
             ) : (
-              <div className="text-sm text-muted-foreground">Loading breakdown...</div>
+              <div className="text-sm text-muted-foreground">
+                Loading provider distribution...
+              </div>
             )}
           </CardContent>
         </Card>
@@ -358,8 +447,8 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-sm text-muted-foreground">
-              Usage and health summary by workflow template (runs, success rate, average
-              execution time).
+              Usage and health summary by workflow template (runs, success rate,
+              average execution time).
             </div>
             {state.kind === "ready" && state.usage.length > 0 ? (
               <div className="space-y-3">
@@ -383,8 +472,9 @@ export default function DashboardPage() {
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Runs: {row.totalRuns} · Success: {formatPercent(row.successRate)} ·
-                          Avg: {formatDurationMs(row.averageExecutionTimeMs)}
+                          Runs: {row.totalRuns} · Success:{" "}
+                          {formatPercent(row.successRate)} · Avg:{" "}
+                          {formatDurationMs(row.averageExecutionTimeMs)}
                         </div>
                       </div>
                       <div className="h-2 w-full rounded-full bg-muted/60">
@@ -408,4 +498,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

@@ -3,9 +3,18 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { api, type WorkflowRun, type WorkflowRunStatus } from "../../lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/card";
 import { RunStatusBadge } from "../../components/status-badges";
-import { formatDateTime, formatDurationMs, formatRelativeTime } from "../../lib/time";
+import {
+  formatDateTime,
+  formatDurationMs,
+  formatRelativeTime,
+} from "../../lib/time";
 
 type State =
   | { kind: "loading" }
@@ -14,7 +23,9 @@ type State =
 
 export default function RunsPage() {
   const [state, setState] = useState<State>({ kind: "loading" });
-  const [statusFilter, setStatusFilter] = useState<WorkflowRunStatus | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<WorkflowRunStatus | "all">(
+    "all",
+  );
   const [workflowFilter, setWorkflowFilter] = useState<string>("all");
 
   useEffect(() => {
@@ -62,9 +73,10 @@ export default function RunsPage() {
       <section className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Runs</h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Workflow runs represent execution instances (queued/running/completed/failed).
-          Create a simulated run from a workflow detail page to see lifecycle logs and
-          a generated output payload.
+          Workflow runs represent execution instances
+          (queued/running/completed/failed). Create a run from a workflow detail
+          page to see provider lifecycle logs and a structured output payload.
+          Simulated execution remains the recommended default.
         </p>
       </section>
 
@@ -78,7 +90,9 @@ export default function RunsPage() {
             <CardTitle className="text-rose-800">Failed to load runs</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-sm text-rose-800">Unable to reach the API to load runs.</div>
+            <div className="text-sm text-rose-800">
+              Unable to reach the API to load runs.
+            </div>
             <div className="mt-2 text-xs text-rose-700">
               If the API is up, you may just have no runs yet.
             </div>
@@ -116,7 +130,9 @@ export default function RunsPage() {
           <CardContent>
             <div className="mb-4 grid gap-3 md:grid-cols-3">
               <div className="space-y-1">
-                <div className="text-xs font-medium text-muted-foreground">Status</div>
+                <div className="text-xs font-medium text-muted-foreground">
+                  Status
+                </div>
                 <select
                   className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   value={statusFilter}
@@ -133,7 +149,9 @@ export default function RunsPage() {
               </div>
 
               <div className="space-y-1">
-                <div className="text-xs font-medium text-muted-foreground">Workflow</div>
+                <div className="text-xs font-medium text-muted-foreground">
+                  Workflow
+                </div>
                 <select
                   className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                   value={workflowFilter}
@@ -149,7 +167,9 @@ export default function RunsPage() {
               </div>
 
               <div className="space-y-1">
-                <div className="text-xs font-medium text-muted-foreground">Showing</div>
+                <div className="text-xs font-medium text-muted-foreground">
+                  Showing
+                </div>
                 <div className="rounded-md border border-border bg-background/40 px-3 py-2 text-sm">
                   {rows.length} run{rows.length === 1 ? "" : "s"}
                 </div>
@@ -181,38 +201,42 @@ export default function RunsPage() {
                         key={run.id}
                         className="border-b border-border/60 hover:bg-muted/40"
                       >
-                      <td className="py-3 pr-4 align-top">
-                        <Link className="underline" href={`/runs/${run.id}`}>
-                          <code className="text-xs">{run.id}</code>
-                        </Link>
-                      </td>
-                      <td className="py-3 pr-4 align-top">
-                        <div className="font-medium">
-                          {run.workflow?.name ?? run.workflowId}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          <code>{run.workflow?.slug ?? run.workflowId}</code>
-                        </div>
-                      </td>
-                      <td className="py-3 pr-4 align-top">
-                        <RunStatusBadge status={run.status} />
-                      </td>
-                      <td className="py-3 pr-4 align-top">
-                        <div className="text-xs text-muted-foreground">
-                          {formatRelativeTime(run.createdAt)}
-                        </div>
-                        <div className="text-xs">{formatDateTime(run.createdAt)}</div>
-                      </td>
-                      <td className="py-3 pr-4 align-top text-xs text-muted-foreground">
-                        {formatDurationMs(durationMs)}
-                      </td>
-                      <td className="py-3 pr-4 align-top">
-                        <div className="text-xs text-muted-foreground">
-                          {formatRelativeTime(run.completedAt)}
-                        </div>
-                        <div className="text-xs">{formatDateTime(run.completedAt)}</div>
-                      </td>
-                    </tr>
+                        <td className="py-3 pr-4 align-top">
+                          <Link className="underline" href={`/runs/${run.id}`}>
+                            <code className="text-xs">{run.id}</code>
+                          </Link>
+                        </td>
+                        <td className="py-3 pr-4 align-top">
+                          <div className="font-medium">
+                            {run.workflow?.name ?? run.workflowId}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            <code>{run.workflow?.slug ?? run.workflowId}</code>
+                          </div>
+                        </td>
+                        <td className="py-3 pr-4 align-top">
+                          <RunStatusBadge status={run.status} />
+                        </td>
+                        <td className="py-3 pr-4 align-top">
+                          <div className="text-xs text-muted-foreground">
+                            {formatRelativeTime(run.createdAt)}
+                          </div>
+                          <div className="text-xs">
+                            {formatDateTime(run.createdAt)}
+                          </div>
+                        </td>
+                        <td className="py-3 pr-4 align-top text-xs text-muted-foreground">
+                          {formatDurationMs(durationMs)}
+                        </td>
+                        <td className="py-3 pr-4 align-top">
+                          <div className="text-xs text-muted-foreground">
+                            {formatRelativeTime(run.completedAt)}
+                          </div>
+                          <div className="text-xs">
+                            {formatDateTime(run.completedAt)}
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })}
                 </tbody>
