@@ -9,7 +9,7 @@ Use these points for interview walkthroughs, GitHub/LinkedIn copy, or a short de
 ## What this project is not
 - Not a production SaaS.
 - No authentication, billing, or multi-tenant admin complexity.
-- No OpenAI or n8n integrations in the MVP.
+- No n8n integration; the optional OpenAI backend adapter is disabled by default.
 
 ## Architectural decisions (why)
 - Simulation-first execution: keeps the demo deterministic, repeatable, and safe for public GitHub use.
@@ -20,12 +20,12 @@ Use these points for interview walkthroughs, GitHub/LinkedIn copy, or a short de
 
 ## Demo flow (30–60 seconds)
 1. Open the dashboard to show seeded workflows and sample runs.
-2. Go to Workflows, open a workflow, and submit a run.
+2. Open the seeded AI Business Summary workflow and show its provider explanation and input form.
 3. Open the run detail page to show:
    - run status + timestamps
-   - timeline logs
-   - input/output JSON payloads
-4. Return to the dashboard to show updated stats and recent activity.
+   - provider lifecycle logs
+   - safe provider metadata and input/output payloads
+4. Return to the dashboard to show updated stats and provider distribution.
 
 ## Key engineering concepts demonstrated
 - Domain modeling: `Workflow`, `WorkflowRun`, `WorkflowLog`
@@ -36,7 +36,7 @@ Use these points for interview walkthroughs, GitHub/LinkedIn copy, or a short de
 
 ## How to talk about “AI” without overselling
 - This MVP demonstrates AI workflow orchestration UX and architecture patterns.
-- Execution is simulated so reviewers can focus on:
+- Execution is simulated by default so reviewers can focus on:
   - lifecycle management
   - validation and safe defaults
   - logs and output handling

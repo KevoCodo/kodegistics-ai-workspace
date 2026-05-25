@@ -12,7 +12,7 @@ Many “AI automation” demos stop at prompts. Real operational value comes fro
 - Workflow orchestration (templates, routing, lifecycle states)
 - Provider adapter architecture (execution abstraction + registry)
 - Schema-driven UI forms (workflow-defined inputs)
-- Simulated AI execution (deterministic, credential-free)
+- Simulated AI execution (deterministic, credential-free) with an optional OpenAI adapter
 - Execution logging (timeline-style steps per run)
 - Lightweight observability metrics (success rate, usage, recent activity)
 - Operational dashboard design (status-driven UX, traceability)
@@ -24,7 +24,9 @@ Many “AI automation” demos stop at prompts. Real operational value comes fro
 - Workflow runs with deterministic lifecycle: `queued` -> `running` -> `completed` / `failed`
 - Run history and run detail pages with ordered logs and structured output payloads
 - Analytics endpoints + dashboard observability views (status breakdown, usage, recent activity)
-- Provider adapter layer (only `simulated` provider enabled)
+- Provider adapter layer (`simulated` by default; optional feature-flagged `openai`)
+- Workflow create/edit provider selector with backend-reported availability status
+- Seeded `AI Business Summary Workflow` for safe provider adapter demonstrations
 
 ## Tech Stack
 - Frontend: Next.js (App Router), React, TypeScript, Tailwind CSS
@@ -43,9 +45,8 @@ NestJS API (Workflows + Runs + Logs + Analytics)
   | resolve provider
   v
 Provider Registry
-  |
-  v
-Simulated Provider (deterministic, no external calls)
+  |-- Simulated Provider (default, deterministic, no external calls)
+  `-- OpenAI Provider (optional, disabled by default)
   |
   | TypeORM
   v
@@ -55,11 +56,27 @@ PostgreSQL (workflow, workflow_run, workflow_log)
 ## Provider Adapter (Architecture Readiness)
 Workflows include `providerType` (default: `simulated`). The API resolves a provider through a small registry and executes via an interface so future providers can be added behind feature flags without changing the workflow/run API contract.
 
-Enabled in the MVP:
-- `simulated` (deterministic, public-safe, credential-free)
+Supported providers:
+- `simulated` (default; deterministic, public-safe, credential-free)
+- `openai` (optional backend adapter; only executes when `OPENAI_PROVIDER_ENABLED=true` and an API key is configured)
+
+OpenAI execution is opt-in and intended only for sanitized demo inputs. Do not submit private, client, proprietary, or credential-bearing data to real providers.
+
+The workflow template editor exposes both provider choices. `simulated` remains the recommended default for public walkthroughs; selecting `openai` does not execute anything until a run is created and the API environment explicitly enables/configures the adapter.
+
+`GET /providers` reports UI-safe provider readiness:
+
+```json
+[
+  { "type": "simulated", "status": "active", "default": true },
+  { "type": "openai", "status": "disabled", "default": false }
+]
+```
+
+For `openai`, status becomes `enabled` only when the feature flag and API key are configured, or `missing_api_key` when enabled without a key.
 
 Not implemented (intentionally out of scope):
-- OpenAI / Anthropic / local model providers
+- Anthropic / local model providers
 - n8n or other workflow engines
 
 ## Workflow Execution Lifecycle
@@ -72,7 +89,7 @@ Not implemented (intentionally out of scope):
   - `provider_execution_started`
   - `simulated_processing`
   - `formatting`
-  - `provider_execution_completed`
+  - `provider_execution_completed` (or `provider_execution_failed`)
   - `completed` (or `failed`)
 
 ## Analytics / Observability
@@ -84,13 +101,14 @@ The API exposes lightweight aggregation endpoints and the dashboard renders:
 
 ## Demo Flow
 1. View workflow templates (catalog)
-2. Create or edit a workflow template
-3. Submit schema-driven workflow input
-4. Run simulated workflow execution
-5. Review execution status transitions
-6. Inspect logs and structured output payload
-7. Review dashboard analytics
-8. Review provider architecture (`GET /providers` + Architecture page)
+2. Open the seeded `AI Business Summary Workflow` or create/edit a template
+3. Keep `simulated` selected for the recommended demo path, or select `openai` to show opt-in provider architecture
+4. Submit sanitized schema-driven workflow input
+5. Run provider execution
+6. Review execution status transitions and provider lifecycle logs
+7. Inspect structured output and safe provider metadata
+8. Review dashboard analytics and provider distribution
+9. Review provider architecture (`GET /providers` + Architecture page)
 
 ## Local Development
 ### Prerequisites
@@ -125,6 +143,9 @@ Services:
 - `TYPEORM_SYNCHRONIZE` (default `true` for local dev)
 - `SEED_SAMPLE_RUNS` (seeds demo runs when DB has zero runs; disabled in production)
 - `SIMULATION_STEP_DELAY_MS` (optional; default `120`)
+- `OPENAI_PROVIDER_ENABLED` (optional; defaults to `false`; must be `true` before the OpenAI adapter can execute)
+- `OPENAI_API_KEY` (optional; required only when the OpenAI adapter is enabled)
+- `OPENAI_MODEL` (optional OpenAI model configuration; example default `gpt-4o-mini`)
 
 ## Docker
 ### Postgres only
@@ -161,6 +182,7 @@ If you open the web UI via a non-localhost address (for example, a WSL/Docker/VM
   - `GET /analytics/status-breakdown`
 - Providers:
   - `GET /providers`
+    - Reports `simulated` as the default and OpenAI readiness as `disabled`, `enabled`, or `missing_api_key`
 
 ## Screenshots
 See `docs/screenshots/README.md` for a suggested screenshot list. Recommended set:
@@ -173,19 +195,19 @@ See `docs/screenshots/README.md` for a suggested screenshot list. Recommended se
 
 ## Project Status
 - Status: MVP complete and ready for public showcase
-- Execution: simulated provider only (no external AI providers)
+- Execution: simulated provider by default; optional OpenAI adapter disabled by default
 
 ## MVP Boundaries
 - No authentication
 - No billing
-- No real OpenAI execution
+- No real provider execution unless explicitly enabled with sanitized demo data
 - No real n8n execution
 - No private business/client data
-- Simulated provider execution only
+- Simulated provider remains the default and credential-free demo path
 - Public portfolio showcase only (not production-hardened)
 
 ## Future Improvements (not in MVP)
-- Optional real providers behind feature flags (OpenAI/Anthropic/local models)
+- Additional optional real providers behind feature flags (Anthropic/local models)
 - Optional external workflow engine adapters (e.g., n8n)
 - Streaming run updates (SSE/WebSockets)
 - Async execution via a queue/worker

@@ -26,13 +26,13 @@ This stack is intentionally conventional and widely understood, to maximize clar
 
 ## Architecture patterns showcased
 - Schema-driven forms (workflow-defined inputs)
-- Provider adapter layer (registry + provider interface; simulated provider only)
+- Provider adapter layer (registry + provider interface; simulated default with optional OpenAI adapter)
 - Status-driven run lifecycle and execution logs
 - Lightweight analytics endpoints for observability discussion
 
 ## Intentional non-goals (MVP)
 - No authentication, billing, or team/user management
-- No real provider integrations (OpenAI/Anthropic/local models)
+- No real provider integrations beyond the opt-in, disabled-by-default OpenAI adapter
 - No external workflow tool execution (n8n, etc.)
 - No visual workflow builder
 

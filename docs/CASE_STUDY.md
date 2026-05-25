@@ -22,7 +22,8 @@ Next.js UI
   -> NestJS REST API
     -> Workflow Service (templates + validation)
     -> Provider Registry (resolve provider by type)
-      -> Simulated Provider (execution)
+      -> Simulated Provider (default execution)
+      -> OpenAI Provider (optional; disabled by default)
     -> Workflow Log Service (append-only log entries)
     -> Analytics Service (aggregations)
   -> PostgreSQL (workflows, runs, logs)
@@ -54,14 +55,14 @@ Next.js UI
 The provider adapter layer is an architecture readiness feature:
 - Workflows include `providerType` (default: `simulated`)
 - A provider registry resolves the correct provider and routes execution through an interface
-- Only the simulated provider is enabled in the MVP
+- The simulated provider is enabled by default; the optional OpenAI adapter requires explicit configuration
 
-This demonstrates how real providers (OpenAI/Anthropic/local models) could be added later behind feature flags without changing the workflow/run API contract.
+This demonstrates how a real provider can be added behind a feature flag without changing the workflow/run API contract.
 
 ## MVP Boundaries
 - No authentication or user accounts
 - No billing or payments
-- No real OpenAI/Anthropic/local model execution
+- No real provider execution by default; optional OpenAI execution is restricted to sanitized demo inputs
 - No n8n execution or external workflow engine integration
 - No private business/client data or proprietary workflows
 - No production-hardening claims (portfolio MVP only)
@@ -73,7 +74,7 @@ This demonstrates how real providers (OpenAI/Anthropic/local models) could be ad
 - How a small provider abstraction can keep orchestration logic stable while enabling future extensibility
 
 ## Future Improvements
-- Add optional real provider adapters behind feature flags (kept out of MVP)
+- Add additional optional provider adapters behind feature flags
 - Stream run updates (SSE/WebSockets)
 - Async execution via a queue/worker for long-running workflows
 - More analytics slices (per-workflow trend views, error breakdowns)

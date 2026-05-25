@@ -66,4 +66,4 @@ Suggested topics:
 - LinkedIn Featured description added.
 - LinkedIn post drafted (see `docs/PORTFOLIO_COPY.md`).
 - 3–6 screenshots or a short demo clip ready.
-- MVP boundaries stated clearly (simulation-only, public-safe, no private data).
+- MVP boundaries stated clearly (simulation-default, optional provider opt-in only, public-safe, no private data).

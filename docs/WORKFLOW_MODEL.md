@@ -12,15 +12,23 @@ A workflow is a predefined template that describes:
 
 **Key fields (implemented)**
 - `id`, `name`, `slug`, `description`, `category`, `status`
-- `providerType` (`simulated` in the MVP)
+- `providerType` (`simulated` | `openai`; defaults to `simulated`)
 - `inputSchema` (a small JSON shape for UI rendering; not full JSON Schema)
 - `createdAt`, `updatedAt`
 
 ### ProviderType (architecture readiness)
 The provider adapter layer is an architecture readiness feature: it allows the execution backend to be swapped without changing the workflow/run API contract.
 
-- Supported providers in the MVP: `simulated` only
-- No real OpenAI/Anthropic/local-LLM execution is implemented
+- Supported providers: `simulated` and optional `openai`
+- `simulated` remains the default for new or legacy workflows without `providerType`
+- `openai` executes only when explicitly selected and enabled through environment configuration
+- Unknown provider values fail cleanly instead of silently selecting a real provider
+
+### Provider selection behavior (Phase 13B)
+- Workflow create/edit forms expose `simulated` and `openai`.
+- New workflows and the seeded provider demo workflow default to `simulated`.
+- The UI may show availability from `GET /providers`, but selecting `openai` never bypasses backend configuration checks.
+- When OpenAI is disabled or missing configuration, the run fails with a public-safe message and remains traceable through provider lifecycle logs.
 
 ### WorkflowRun
 A workflow run is a single execution instance of a workflow. It stores:
@@ -53,8 +61,8 @@ A workflow log is an append-only record emitted during a run. In the MVP, logs a
 - `completed`: finished successfully with an output
 - `failed`: finished with an error
 
-## Simulated execution lifecycle (MVP)
-Execution is synchronous and simulated inside the API service:
+## Provider execution lifecycle (MVP)
+Execution is synchronous inside the API service:
 - A run is created as `queued` with an initial log entry.
 - The service logs a predictable sequence of steps:
   - `queued`
@@ -62,16 +70,16 @@ Execution is synchronous and simulated inside the API service:
   - `routing`
   - `provider_resolved`
   - `provider_execution_started`
-  - `simulated_processing`
-  - `formatting`
-  - `provider_execution_completed`
+  - provider-specific safe log entries (for simulation, `simulated_processing` and `formatting`)
+  - `provider_execution_completed` (or `provider_execution_failed`)
   - `completed` (or `failed`)
 - The run is updated to `running`, then `completed` with an output payload (or `failed` with an error message).
 
-No external AI providers or workflow tools are called in the MVP.
+The optional OpenAI adapter may call the OpenAI API only for explicitly configured, sanitized demo workflows. No external workflow tools are called.
 
 ## Seed data (demo readiness)
 - Workflows are seeded on API startup (idempotent upsert by `slug`).
+- `ai-business-summary` is a sanitized provider demo workflow seeded with `providerType: simulated`; it can be switched to `openai` explicitly for configured local demos.
 - Sample runs can also be seeded for screenshot-ready UI (only when the database has zero runs).
 
 ## Workflow template management (admin-lite)
