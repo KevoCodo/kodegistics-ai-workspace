@@ -127,5 +127,9 @@ describe('WorkflowRunsService provider execution', () => {
     expect(logRows.map((row) => row.stepName)).toContain(
       'provider_execution_failed',
     );
+    expect(
+      logRows.find((row) => row.stepName === 'provider_execution_failed')
+        ?.message,
+    ).toContain('simulated provider execution failed: Provider unavailable.');
   });
 });

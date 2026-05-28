@@ -80,6 +80,9 @@ export class WorkflowRunsService {
       'Workflow run created and queued for provider execution.',
     );
 
+    const requestedProviderType =
+      workflow.providerType ?? ProviderType.Simulated;
+
     try {
       await log(
         'validation',
@@ -95,16 +98,15 @@ export class WorkflowRunsService {
 
       await log('routing', `Routing to workflow runner: ${workflow.slug}`);
 
-      const provider = this.providerRegistry.resolve(
-        workflow.providerType ?? ProviderType.Simulated,
-      );
+      const provider = this.providerRegistry.resolve(requestedProviderType);
+      const resolvedProviderType = provider.getProviderType();
       await log(
         'provider_resolved',
-        `Resolved execution provider: ${provider.getProviderName()} (${provider.getProviderType()}).`,
+        `Resolved execution provider: ${provider.getProviderName()} (${resolvedProviderType}).`,
       );
       await log(
         'provider_execution_started',
-        `Starting provider execution for workflow: ${workflow.slug}`,
+        `Starting ${resolvedProviderType} provider execution for workflow: ${workflow.slug}.`,
       );
 
       provider.validatePayload({ workflow, inputPayload });
@@ -119,7 +121,7 @@ export class WorkflowRunsService {
       if (result.status === WorkflowRunStatus.Completed) {
         await log(
           'provider_execution_completed',
-          `Provider execution completed with status: ${result.status} (${result.executionTimeMs}ms).`,
+          `${resolvedProviderType} provider execution completed with status: ${result.status} (${result.executionTimeMs}ms).`,
         );
         await this.runsRepo.save({
           id: savedRun.id,
@@ -137,7 +139,7 @@ export class WorkflowRunsService {
           'Workflow run failed during provider execution.';
         await log(
           'provider_execution_failed',
-          `Provider execution failed with status: ${result.status} (${result.executionTimeMs}ms).`,
+          `${resolvedProviderType} provider execution failed: ${message} (${result.executionTimeMs}ms).`,
         );
         await this.runsRepo.save({
           id: savedRun.id,
@@ -154,7 +156,7 @@ export class WorkflowRunsService {
           : 'Workflow run failed during provider execution.';
       await log(
         'provider_execution_failed',
-        'Provider execution could not be completed.',
+        `${requestedProviderType} provider execution failed: ${message}`,
       );
       await this.runsRepo.save({
         id: savedRun.id,
