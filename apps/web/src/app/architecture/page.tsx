@@ -84,7 +84,9 @@ export default function ArchitecturePage() {
             <div>
               <code>simulated</code> is the default provider.{" "}
               <code>openai</code> is optional and only executes when backend
-              environment configuration enables it.
+              environment configuration enables it. <code>anthropic</code>,{" "}
+              <code>local</code>, and <code>custom-webhook</code> are
+              placeholder-only registry entries.
             </div>
           </CardContent>
         </Card>
@@ -97,9 +99,10 @@ export default function ArchitecturePage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <div>
-              Workflow create/edit forms allow selecting <code>simulated</code>{" "}
-              or <code>openai</code>; <code>GET /providers</code> reports
-              whether the optional adapter is currently available.
+              Workflow create/edit forms allow selecting executable adapters.
+              Coming soon providers are visible but disabled;{" "}
+              <code>GET /providers</code> reports implementation and
+              availability status.
             </div>
             <div>
               The goal is to keep the core domain model stable while swapping
@@ -141,7 +144,8 @@ NestJS API (Workflows + Runs + Logs + Analytics)
   v
 Provider Registry
   |-- Simulated Provider (default)
-  \`-- OpenAI Provider (optional; configuration-gated)
+  |-- OpenAI Provider (optional; configuration-gated)
+  \`-- Future Provider Placeholders (non-executable)
   |
   | persist logs + state
   v

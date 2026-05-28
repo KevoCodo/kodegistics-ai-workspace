@@ -280,11 +280,22 @@ export function WorkflowTemplateEditor({
                   Simulated (safe, deterministic)
                 </option>
                 <option value="openai">OpenAI (optional real provider)</option>
+                <option value="anthropic" disabled>
+                  Anthropic (coming soon)
+                </option>
+                <option value="local" disabled>
+                  Local LLM (coming soon)
+                </option>
+                <option value="custom-webhook" disabled>
+                  Custom webhook (coming soon)
+                </option>
               </select>
               <div className="space-y-2 text-xs text-muted-foreground">
                 <div>
                   Simulated provider is recommended for public demo usage.
                   OpenAI provider requires backend environment configuration.
+                  Coming soon providers are displayed for architecture readiness
+                  and cannot be selected here.
                 </div>
                 {selectedProviderStatus ? (
                   <Badge

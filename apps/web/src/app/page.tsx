@@ -57,7 +57,13 @@ function countRunsByProvider(
       counts[provider] += 1;
       return counts;
     },
-    { simulated: 0, openai: 0 } as Record<ProviderType, number>,
+    {
+      simulated: 0,
+      openai: 0,
+      anthropic: 0,
+      local: 0,
+      "custom-webhook": 0,
+    } as Record<ProviderType, number>,
   );
 }
 
@@ -412,8 +418,16 @@ export default function DashboardPage() {
               Simulated remains the recommended public demo default.
             </div>
             {state.kind === "ready" ? (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {(["simulated", "openai"] as const).map((provider) => (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {(
+                  [
+                    "simulated",
+                    "openai",
+                    "anthropic",
+                    "local",
+                    "custom-webhook",
+                  ] as const
+                ).map((provider) => (
                   <div
                     key={provider}
                     className="rounded-lg border border-border bg-background/40 p-3"
@@ -425,7 +439,9 @@ export default function DashboardPage() {
                       {formatCount(state.providerCounts[provider])}
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">
-                      configured run
+                      {provider === "simulated" || provider === "openai"
+                        ? "configured run"
+                        : "placeholder run"}
                       {state.providerCounts[provider] === 1 ? "" : "s"}
                     </div>
                   </div>

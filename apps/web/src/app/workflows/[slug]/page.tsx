@@ -171,11 +171,18 @@ export default async function WorkflowDetailPage({
               </div>
             </div>
 
-            <WorkflowRunForm
-              workflowSlug={workflow.slug}
-              providerType={workflow.providerType}
-              fields={fields}
-            />
+            {providerStatus?.implemented === false ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30">
+                This provider is a coming soon placeholder and cannot be
+                executed from the UI in the public MVP.
+              </div>
+            ) : (
+              <WorkflowRunForm
+                workflowSlug={workflow.slug}
+                providerType={workflow.providerType}
+                fields={fields}
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -192,6 +199,11 @@ export default async function WorkflowDetailPage({
               <div>
                 <code>openai</code> = optional real provider adapter that
                 requires backend environment configuration.
+              </div>
+              <div>
+                <code>anthropic</code>, <code>local</code>, and{" "}
+                <code>custom-webhook</code> = coming soon registry placeholders;
+                they do not execute in this MVP.
               </div>
               <div className="text-xs">
                 Selected: <code>{workflow.providerType}</code>

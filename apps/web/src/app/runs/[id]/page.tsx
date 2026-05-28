@@ -48,7 +48,15 @@ function getProviderMetadata(run: WorkflowRun): ProviderMetadata | null {
   if (!metadata || typeof metadata !== "object") return null;
 
   const provider = (metadata as { provider?: unknown }).provider;
-  if (provider !== "simulated" && provider !== "openai") return null;
+  if (
+    provider !== "simulated" &&
+    provider !== "openai" &&
+    provider !== "anthropic" &&
+    provider !== "local" &&
+    provider !== "custom-webhook"
+  ) {
+    return null;
+  }
 
   return metadata as ProviderMetadata;
 }
@@ -222,7 +230,12 @@ export default async function RunDetailPage({
 
             {visibleError ? (
               <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30">
-                <div className="text-xs font-medium">Error</div>
+                <div className="text-xs font-medium">
+                  Provider execution failed
+                </div>
+                <div className="mt-1 text-xs">
+                  Provider: <code>{run.workflow?.providerType ?? "-"}</code>
+                </div>
                 <div className="mt-1 text-sm">{visibleError}</div>
               </div>
             ) : null}

@@ -5,16 +5,25 @@ export type ApiError = {
 
 export type WorkflowStatus = "active" | "inactive";
 export type WorkflowRunStatus = "queued" | "running" | "completed" | "failed";
-export type ProviderType = "simulated" | "openai";
+export type ProviderType =
+  | "simulated"
+  | "openai"
+  | "anthropic"
+  | "local"
+  | "custom-webhook";
 export type ProviderAvailabilityStatus =
   | "active"
   | "disabled"
   | "enabled"
-  | "missing_api_key";
+  | "missing_api_key"
+  | "coming_soon";
 
 export type ProviderStatus = {
   type: ProviderType;
   status: ProviderAvailabilityStatus;
+  implemented: boolean;
+  enabled: boolean;
+  requiresApiKey: boolean;
   default: boolean;
 };
 
