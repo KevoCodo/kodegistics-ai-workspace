@@ -16,7 +16,7 @@ Many “AI automation” demos stop at prompts. Real operational value comes fro
 - Execution logging (timeline-style steps per run)
 - Lightweight observability metrics (success rate, usage, recent activity)
 - Operational dashboard design (status-driven UX, traceability)
-- Public-safe AI systems thinking (architecture readiness without real providers)
+- Public-safe AI systems thinking (opt-in real-provider execution with safe defaults)
 
 ## Core Features (MVP)
 - Workflow template catalog (seeded) and admin-lite template CRUD (create/edit/deactivate)
@@ -24,7 +24,7 @@ Many “AI automation” demos stop at prompts. Real operational value comes fro
 - Workflow runs with deterministic lifecycle: `queued` -> `running` -> `completed` / `failed`
 - Run history and run detail pages with ordered logs and structured output payloads
 - Analytics endpoints + dashboard observability views (status breakdown, usage, recent activity)
-- Provider adapter layer (`simulated` by default; optional feature-flagged `openai`)
+- Provider adapter layer (`simulated` by default; optional feature-flagged `openai`; future placeholders visible but non-executable)
 - Workflow create/edit provider selector with backend-reported availability status
 - Seeded `AI Business Summary Workflow` for safe provider adapter demonstrations
 
@@ -46,7 +46,8 @@ NestJS API (Workflows + Runs + Logs + Analytics)
   v
 Provider Registry
   |-- Simulated Provider (default, deterministic, no external calls)
-  `-- OpenAI Provider (optional, disabled by default)
+  |-- OpenAI Provider (optional, disabled by default)
+  `-- Provider Placeholders (anthropic, local, custom-webhook; non-executable)
   |
   | TypeORM
   v
@@ -56,27 +57,31 @@ PostgreSQL (workflow, workflow_run, workflow_log)
 ## Provider Adapter (Architecture Readiness)
 Workflows include `providerType` (default: `simulated`). The API resolves a provider through a small registry and executes via an interface so future providers can be added behind feature flags without changing the workflow/run API contract.
 
-Supported providers:
+Executable providers:
 - `simulated` (default; deterministic, public-safe, credential-free)
 - `openai` (optional backend adapter; only executes when `OPENAI_PROVIDER_ENABLED=true` and an API key is configured)
 
+Registered placeholders:
+- `anthropic`, `local`, and `custom-webhook` are intentionally non-executable catalog entries that demonstrate registry growth and return a clean failed result if invoked through the API.
+
 OpenAI execution is opt-in and intended only for sanitized demo inputs. Do not submit private, client, proprietary, or credential-bearing data to real providers.
 
-The workflow template editor exposes both provider choices. `simulated` remains the recommended default for public walkthroughs; selecting `openai` does not execute anything until a run is created and the API environment explicitly enables/configures the adapter.
+The workflow template editor exposes executable provider choices and displays future providers as disabled `coming soon` options. `simulated` remains the recommended default for public walkthroughs; selecting `openai` does not execute anything until a run is created and the API environment explicitly enables/configures the adapter.
 
 `GET /providers` reports UI-safe provider readiness:
 
 ```json
 [
-  { "type": "simulated", "status": "active", "default": true },
-  { "type": "openai", "status": "disabled", "default": false }
+  { "type": "simulated", "status": "active", "implemented": true, "enabled": true, "requiresApiKey": false, "default": true },
+  { "type": "openai", "status": "disabled", "implemented": true, "enabled": false, "requiresApiKey": true, "default": false },
+  { "type": "anthropic", "status": "coming_soon", "implemented": false, "enabled": false, "requiresApiKey": true, "default": false }
 ]
 ```
 
 For `openai`, status becomes `enabled` only when the feature flag and API key are configured, or `missing_api_key` when enabled without a key.
 
 Not implemented (intentionally out of scope):
-- Anthropic / local model providers
+- Anthropic, local model, and custom webhook provider execution
 - n8n or other workflow engines
 
 ## Workflow Execution Lifecycle
@@ -146,6 +151,7 @@ Services:
 - `OPENAI_PROVIDER_ENABLED` (optional; defaults to `false`; must be `true` before the OpenAI adapter can execute)
 - `OPENAI_API_KEY` (optional; required only when the OpenAI adapter is enabled)
 - `OPENAI_MODEL` (optional OpenAI model configuration; example default `gpt-4o-mini`)
+- `ANTHROPIC_API_KEY`, `LOCAL_LLM_BASE_URL`, `CUSTOM_WEBHOOK_URL` (documented empty placeholders only; no execution wiring in the MVP)
 
 ## Docker
 ### Postgres only
@@ -182,7 +188,7 @@ If you open the web UI via a non-localhost address (for example, a WSL/Docker/VM
   - `GET /analytics/status-breakdown`
 - Providers:
   - `GET /providers`
-    - Reports `simulated` as the default and OpenAI readiness as `disabled`, `enabled`, or `missing_api_key`
+    - Reports provider implementation, enabled state, API-key requirement, default provider, and safe availability status
 
 ## Screenshots
 See `docs/screenshots/README.md` for a suggested screenshot list. Recommended set:
@@ -204,10 +210,12 @@ See `docs/screenshots/README.md` for a suggested screenshot list. Recommended se
 - No real n8n execution
 - No private business/client data
 - Simulated provider remains the default and credential-free demo path
+- Anthropic, local, and custom webhook integrations are registry placeholders only
 - Public portfolio showcase only (not production-hardened)
 
 ## Future Improvements (not in MVP)
 - Additional optional real providers behind feature flags (Anthropic/local models)
+- Retry eligibility and retry counters once retry behavior is intentionally designed
 - Optional external workflow engine adapters (e.g., n8n)
 - Streaming run updates (SSE/WebSockets)
 - Async execution via a queue/worker

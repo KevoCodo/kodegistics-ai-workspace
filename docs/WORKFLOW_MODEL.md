@@ -12,20 +12,22 @@ A workflow is a predefined template that describes:
 
 **Key fields (implemented)**
 - `id`, `name`, `slug`, `description`, `category`, `status`
-- `providerType` (`simulated` | `openai`; defaults to `simulated`)
+- `providerType` (`simulated` | `openai` | `anthropic` | `local` | `custom-webhook`; defaults to `simulated`)
 - `inputSchema` (a small JSON shape for UI rendering; not full JSON Schema)
 - `createdAt`, `updatedAt`
 
 ### ProviderType (architecture readiness)
 The provider adapter layer is an architecture readiness feature: it allows the execution backend to be swapped without changing the workflow/run API contract.
 
-- Supported providers: `simulated` and optional `openai`
+- Executable providers: `simulated` and optional `openai`
+- Placeholder-only provider values: `anthropic`, `local`, and `custom-webhook`
 - `simulated` remains the default for new or legacy workflows without `providerType`
 - `openai` executes only when explicitly selected and enabled through environment configuration
+- Placeholder providers return `Provider not yet implemented.` and preserve the normal failed-run lifecycle and logs without making an external call
 - Unknown provider values fail cleanly instead of silently selecting a real provider
 
 ### Provider selection behavior (Phase 13B)
-- Workflow create/edit forms expose `simulated` and `openai`.
+- Workflow create/edit forms expose implemented providers and display placeholder providers as disabled `coming soon` options.
 - New workflows and the seeded provider demo workflow default to `simulated`.
 - The UI may show availability from `GET /providers`, but selecting `openai` never bypasses backend configuration checks.
 - When OpenAI is disabled or missing configuration, the run fails with a public-safe message and remains traceable through provider lifecycle logs.
@@ -76,6 +78,8 @@ Execution is synchronous inside the API service:
 - The run is updated to `running`, then `completed` with an output payload (or `failed` with an error message).
 
 The optional OpenAI adapter may call the OpenAI API only for explicitly configured, sanitized demo workflows. No external workflow tools are called.
+
+`retry_count` and `retry_eligible` remain future readiness fields rather than persisted MVP state because no retry behavior is implemented in this phase.
 
 ## Seed data (demo readiness)
 - Workflows are seeded on API startup (idempotent upsert by `slug`).

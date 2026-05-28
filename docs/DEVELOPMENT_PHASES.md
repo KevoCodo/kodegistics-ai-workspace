@@ -70,6 +70,13 @@ This roadmap keeps the project focused and portfolio-friendly. Each phase should
 - Seed a sanitized `AI Business Summary Workflow` for optional provider demonstrations
 - Add lightweight dashboard provider distribution using existing run/workflow data
 
+## Phase 14A: Provider registry expansion and failure readiness (completed)
+- Register `anthropic`, `local`, and `custom-webhook` as non-executable provider placeholders
+- Expand safe provider status reporting with implementation and enabled state
+- Preserve lifecycle/log integrity for clean placeholder failure responses
+- Display coming-soon provider options in the UI without enabling execution
+- Defer retry state fields until a future phase defines retry behavior
+
 ## Future phases (out of scope for MVP)
 - Additional optional real provider connectors behind feature flags
 - Streaming updates (SSE/WebSockets)

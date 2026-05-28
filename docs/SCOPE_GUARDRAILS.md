@@ -11,17 +11,19 @@ This project is a public portfolio showcase. It must remain generic, sanitized, 
 - Authentication, authorization, SSO, or user management
 - Billing, payments, subscriptions, invoices, or usage metering
 - Multi-tenant organizations, teams, invites, or complex role/permission systems
-- External connectors and integrations beyond the explicitly opt-in OpenAI adapter (Anthropic, n8n, etc.)
+- Executable external connectors and integrations beyond the explicitly opt-in OpenAI adapter (Anthropic, n8n, etc.)
 - A visual workflow builder (drag-and-drop authoring, versioning, publishing pipelines)
 - Background job infrastructure (queues/workers) beyond simple in-process simulation
 - Production hardening claims (autoscaling, SOC2-style controls, etc.)
 
-## Provider adapter scope (Phase 11+ / Phase 13A)
+## Provider adapter scope (Phase 11+ / Phase 13A / Phase 14A)
 - A provider adapter interface + registry exists to demonstrate architecture readiness.
 - `simulated` execution is implemented, enabled by default, and remains the safest demo path.
 - The optional `openai` adapter may execute only when explicitly selected and `OPENAI_PROVIDER_ENABLED=true`.
 - Real provider execution is opt-in only and must use generic, sanitized demo payloads.
-- Future provider types may be described in docs, but are not part of this public MVP.
+- Future provider types may be registered as non-executable placeholders for architecture demonstration only.
+- Placeholder providers must remain disabled in the UI and fail cleanly if invoked through an API-created workflow.
+- No retry engine, retry counters, or retry policy is introduced without a later explicitly scoped phase.
 
 ## Template CRUD scope (Phase 9)
 - Template management is admin-lite CRUD only (create/edit/deactivate workflow templates).
