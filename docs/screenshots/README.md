@@ -6,9 +6,10 @@ Use only generic, sanitized data. The API can seed sample runs to make the UI sc
 - `dashboard.png`: dashboard overview (stats + recent activity + status breakdown)
 - `workflows.png`: workflow catalog grouped by category/status
 - `workflow-editor.png`: workflow template editor (create/edit)
-- `workflow-detail.png`: workflow detail page showing schema-driven input form
-- `run-detail.png`: run detail page showing status + timeline logs + JSON input/output
-- `analytics.png`: observability sections (usage, success rate, recent activity)
+- `workflow-detail.png`: `AI Business Summary Workflow` detail showing provider explanation and schema-driven input form
+- `run-detail.png`: completed simulated run showing provider metadata and provider lifecycle timeline entries
+- `provider-disabled.png`: optional OpenAI-selected run showing the clean disabled/missing-configuration state
+- `analytics.png`: observability sections including provider distribution
 - `architecture.png`: architecture + provider adapter page
 
 ## Capture tips

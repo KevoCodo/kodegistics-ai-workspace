@@ -15,10 +15,18 @@ export class WorkflowsSeed implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    const seeds: Array<Pick<
-      WorkflowEntity,
-      'name' | 'slug' | 'description' | 'category' | 'status' | 'providerType' | 'inputSchema'
-    >> = [
+    const seeds: Array<
+      Pick<
+        WorkflowEntity,
+        | 'name'
+        | 'slug'
+        | 'description'
+        | 'category'
+        | 'status'
+        | 'providerType'
+        | 'inputSchema'
+      >
+    > = [
       {
         name: 'Blog Draft Workflow',
         slug: 'blog-draft',
@@ -30,7 +38,12 @@ export class WorkflowsSeed implements OnModuleInit {
         inputSchema: {
           fields: [
             { name: 'topic', label: 'Topic', type: 'text', required: true },
-            { name: 'audience', label: 'Audience', type: 'text', required: true },
+            {
+              name: 'audience',
+              label: 'Audience',
+              type: 'text',
+              required: true,
+            },
             { name: 'tone', label: 'Tone', type: 'text', required: false },
           ],
         },
@@ -106,6 +119,45 @@ export class WorkflowsSeed implements OnModuleInit {
           ],
         },
       },
+      {
+        name: 'AI Business Summary Workflow',
+        slug: 'ai-business-summary',
+        description:
+          'Generates a concise business summary from structured notes using the selected execution provider.',
+        category: 'AI Provider Demo',
+        status: WorkflowStatus.Active,
+        providerType: ProviderType.Simulated,
+        inputSchema: {
+          fields: [
+            {
+              name: 'notes',
+              label: 'Structured Notes',
+              type: 'textarea',
+              required: true,
+              placeholder:
+                'Example: Launch checklist complete; two review items remain; next review Friday.',
+            },
+            {
+              name: 'audience',
+              label: 'Audience',
+              type: 'text',
+              required: false,
+              placeholder: 'Leadership team',
+            },
+            {
+              name: 'tone',
+              label: 'Tone',
+              type: 'select',
+              required: false,
+              options: [
+                { label: 'Concise', value: 'Concise' },
+                { label: 'Professional', value: 'Professional' },
+                { label: 'Action-oriented', value: 'Action-oriented' },
+              ],
+            },
+          ],
+        },
+      },
     ];
 
     const slugs = seeds.map((s) => s.slug);
@@ -122,7 +174,8 @@ export class WorkflowsSeed implements OnModuleInit {
     }
 
     await this.workflowsRepo.insert(toInsert);
-    this.logger.log(`Seeded workflows: ${toInsert.map((s) => s.slug).join(', ')}`);
+    this.logger.log(
+      `Seeded workflows: ${toInsert.map((s) => s.slug).join(', ')}`,
+    );
   }
 }
-

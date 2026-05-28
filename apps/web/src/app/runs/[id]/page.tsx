@@ -1,20 +1,30 @@
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../../../components/ui/card";
 import { JsonBlock } from "../../../components/json-block";
 import {
   getApiBaseUrl,
   getApiBaseUrlOrThrow,
+  type ProviderMetadata,
   type WorkflowLog,
   type WorkflowRun,
 } from "../../../lib/api";
 import { RunStatusBadge } from "../../../components/status-badges";
+import { Badge } from "../../../components/ui/badge";
 import { formatDateTime, formatRelativeTime } from "../../../lib/time";
 
 async function getRun(id: string): Promise<WorkflowRun> {
   const baseUrl = getApiBaseUrlOrThrow();
-  const res = await fetch(`${baseUrl}/workflow-runs/${encodeURIComponent(id)}`, {
-    cache: "no-store",
-  });
+  const res = await fetch(
+    `${baseUrl}/workflow-runs/${encodeURIComponent(id)}`,
+    {
+      cache: "no-store",
+    },
+  );
   if (!res.ok) {
     throw new Error(`Run not found: ${id}`);
   }
@@ -31,6 +41,37 @@ async function getRunLogs(id: string): Promise<WorkflowLog[]> {
     throw new Error(`Logs not found for run: ${id}`);
   }
   return (await res.json()) as WorkflowLog[];
+}
+
+function getProviderMetadata(run: WorkflowRun): ProviderMetadata | null {
+  const metadata = run.outputPayload?.providerMetadata;
+  if (!metadata || typeof metadata !== "object") return null;
+
+  const provider = (metadata as { provider?: unknown }).provider;
+  if (
+    provider !== "simulated" &&
+    provider !== "openai" &&
+    provider !== "anthropic" &&
+    provider !== "local" &&
+    provider !== "custom-webhook"
+  ) {
+    return null;
+  }
+
+  return metadata as ProviderMetadata;
+}
+
+function displayRunError(run: WorkflowRun): string | null {
+  if (!run.errorMessage) return null;
+  if (
+    run.workflow?.providerType === "openai" &&
+    (run.errorMessage.includes("OPENAI_API_KEY") ||
+      run.errorMessage.includes("OpenAI provider is disabled") ||
+      run.errorMessage.includes("not enabled for this local environment"))
+  ) {
+    return "OpenAI provider is not enabled for this local environment. Use simulated provider or configure the backend environment variables.";
+  }
+  return run.errorMessage;
 }
 
 export default async function RunDetailPage({
@@ -55,7 +96,9 @@ export default async function RunDetailPage({
       <div className="space-y-6">
         <section className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">Run details</h1>
-          <p className="text-sm text-muted-foreground">Unable to load run details.</p>
+          <p className="text-sm text-muted-foreground">
+            Unable to load run details.
+          </p>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <Link className="underline" href="/runs">
               Back to runs
@@ -76,11 +119,14 @@ export default async function RunDetailPage({
               <code>NEXT_PUBLIC_API_URL</code>.
             </div>
             <div className="text-xs text-rose-700">
-              Current API base URL: <code>{apiBaseUrl ?? "not configured"}</code>
+              Current API base URL:{" "}
+              <code>{apiBaseUrl ?? "not configured"}</code>
             </div>
             {errorMessage ? (
               <details className="pt-2 text-xs text-rose-700">
-                <summary className="cursor-pointer select-none">Details</summary>
+                <summary className="cursor-pointer select-none">
+                  Details
+                </summary>
                 <div className="mt-2 whitespace-pre-wrap">{errorMessage}</div>
               </details>
             ) : null}
@@ -93,6 +139,14 @@ export default async function RunDetailPage({
   const orderedLogs = [...logs].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
+  const providerMetadata = getProviderMetadata(run);
+  const visibleError = displayRunError(run);
+  const providerLifecycleSteps = new Set([
+    "provider_resolved",
+    "provider_execution_started",
+    "provider_execution_completed",
+    "provider_execution_failed",
+  ]);
 
   return (
     <div className="space-y-8">
@@ -116,7 +170,10 @@ export default async function RunDetailPage({
             Back to workflows
           </Link>
           {run.workflow?.slug ? (
-            <Link className="underline" href={`/workflows/${run.workflow.slug}`}>
+            <Link
+              className="underline"
+              href={`/workflows/${run.workflow.slug}`}
+            >
               View workflow
             </Link>
           ) : null}
@@ -146,6 +203,12 @@ export default async function RunDetailPage({
                 </div>
               </div>
               <div>
+                <div className="text-xs text-muted-foreground">Provider</div>
+                <div className="font-medium text-foreground/90">
+                  {run.workflow?.providerType ?? "-"}
+                </div>
+              </div>
+              <div>
                 <div className="text-xs text-muted-foreground">Started</div>
                 <div>
                   {formatDateTime(run.startedAt)}{" "}
@@ -165,10 +228,55 @@ export default async function RunDetailPage({
               </div>
             </div>
 
-            {run.errorMessage ? (
+            {visibleError ? (
               <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30">
-                <div className="text-xs font-medium">Error</div>
-                <div className="mt-1 text-sm">{run.errorMessage}</div>
+                <div className="text-xs font-medium">
+                  Provider execution failed
+                </div>
+                <div className="mt-1 text-xs">
+                  Provider: <code>{run.workflow?.providerType ?? "-"}</code>
+                </div>
+                <div className="mt-1 text-sm">{visibleError}</div>
+              </div>
+            ) : null}
+
+            {providerMetadata ? (
+              <div className="rounded-lg border border-border bg-muted/40 p-3">
+                <div className="text-xs font-medium text-foreground/80">
+                  Provider metadata
+                </div>
+                <dl className="mt-2 grid gap-2 text-xs md:grid-cols-2">
+                  <div>
+                    <dt>Provider</dt>
+                    <dd className="font-medium text-foreground/90">
+                      {providerMetadata.provider}
+                    </dd>
+                  </div>
+                  {providerMetadata.model ? (
+                    <div>
+                      <dt>Model</dt>
+                      <dd className="font-medium text-foreground/90">
+                        {providerMetadata.model}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {typeof providerMetadata.executionTimeMs === "number" ? (
+                    <div>
+                      <dt>Execution time</dt>
+                      <dd className="font-medium text-foreground/90">
+                        {providerMetadata.executionTimeMs}ms
+                      </dd>
+                    </div>
+                  ) : null}
+                  {providerMetadata.status ? (
+                    <div>
+                      <dt>Status</dt>
+                      <dd className="font-medium text-foreground/90">
+                        {providerMetadata.status}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
               </div>
             ) : null}
           </CardContent>
@@ -180,7 +288,9 @@ export default async function RunDetailPage({
           </CardHeader>
           <CardContent>
             {orderedLogs.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No logs available.</div>
+              <div className="text-sm text-muted-foreground">
+                No logs available.
+              </div>
             ) : (
               <div className="relative">
                 <div className="absolute left-[9px] top-2 h-[calc(100%-16px)] w-px bg-border" />
@@ -189,7 +299,13 @@ export default async function RunDetailPage({
                     <li key={log.id} className="relative pl-7">
                       <div className="absolute left-1 top-2 h-4 w-4 rounded-full border border-border bg-background shadow-sm" />
                       <div className="flex items-start justify-between gap-3">
-                        <code className="text-xs text-muted-foreground">{log.stepName}</code>
+                        {providerLifecycleSteps.has(log.stepName) ? (
+                          <Badge variant="neutral">{log.stepName}</Badge>
+                        ) : (
+                          <code className="text-xs text-muted-foreground">
+                            {log.stepName}
+                          </code>
+                        )}
                         <span className="text-[11px] text-muted-foreground">
                           {formatDateTime(log.createdAt)}
                         </span>

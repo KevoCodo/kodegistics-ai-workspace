@@ -58,8 +58,27 @@ This roadmap keeps the project focused and portfolio-friendly. Each phase should
 - Add portfolio copy and a case study doc for reuse (resume/LinkedIn/interviews)
 - Verify demo flow, Docker setup, and screenshot readiness
 
+## Phase 13A: OpenAI provider adapter foundation (completed)
+- Add an optional OpenAI backend adapter using the existing provider contract and registry
+- Keep `simulated` as the default execution path and disable OpenAI unless explicitly configured
+- Emit provider lifecycle logs and persist only safe provider metadata with completed outputs
+- Document opt-in real-provider guardrails and environment configuration
+
+## Phase 13B: UI wiring, demo workflow, and logging polish (completed)
+- Expose provider selection in workflow create/edit forms with `simulated` as the recommended default
+- Surface backend provider availability, safe run metadata, and provider lifecycle log events in the UI
+- Seed a sanitized `AI Business Summary Workflow` for optional provider demonstrations
+- Add lightweight dashboard provider distribution using existing run/workflow data
+
+## Phase 14A: Provider registry expansion and failure readiness (completed)
+- Register `anthropic`, `local`, and `custom-webhook` as non-executable provider placeholders
+- Expand safe provider status reporting with implementation and enabled state
+- Preserve lifecycle/log integrity for clean placeholder failure responses
+- Display coming-soon provider options in the UI without enabling execution
+- Defer retry state fields until a future phase defines retry behavior
+
 ## Future phases (out of scope for MVP)
-- Optional real provider connectors behind feature flags (kept out of the MVP)
+- Additional optional real provider connectors behind feature flags
 - Streaming updates (SSE/WebSockets)
 - Async execution (queue + worker)
 - Authentication/billing only if explicitly requested later

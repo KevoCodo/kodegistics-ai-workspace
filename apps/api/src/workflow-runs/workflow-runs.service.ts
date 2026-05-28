@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -73,8 +77,11 @@ export class WorkflowRunsService {
 
     await log(
       'queued',
-      'Workflow run created and queued for simulated execution.',
+      'Workflow run created and queued for provider execution.',
     );
+
+    const requestedProviderType =
+      workflow.providerType ?? ProviderType.Simulated;
 
     try {
       await log(
@@ -91,51 +98,49 @@ export class WorkflowRunsService {
 
       await log('routing', `Routing to workflow runner: ${workflow.slug}`);
 
-      const providerType = workflow.providerType ?? ProviderType.Simulated;
-      const provider = this.providerRegistry.resolve(providerType);
+      const provider = this.providerRegistry.resolve(requestedProviderType);
+      const resolvedProviderType = provider.getProviderType();
       await log(
         'provider_resolved',
-        `Resolved execution provider: ${provider.getProviderName()} (${provider.getProviderType()}).`,
+        `Resolved execution provider: ${provider.getProviderName()} (${resolvedProviderType}).`,
       );
       await log(
         'provider_execution_started',
-        `Starting provider execution for workflow: ${workflow.slug}`,
+        `Starting ${resolvedProviderType} provider execution for workflow: ${workflow.slug}.`,
       );
 
       provider.validatePayload({ workflow, inputPayload });
-
-      await log(
-        'simulated_processing',
-        'Simulating processing (deterministic, no external calls).',
-      );
-      await log('formatting', 'Formatting simulated output payload.');
 
       const result = await provider.execute({ workflow, inputPayload });
       for (const entry of result.logs ?? []) {
         await log(entry.stepName, entry.message);
       }
 
-      await log(
-        'provider_execution_completed',
-        `Provider execution completed with status: ${result.status} (${result.executionTimeMs}ms).`,
-      );
-
       const completedAt = new Date();
 
       if (result.status === WorkflowRunStatus.Completed) {
+        await log(
+          'provider_execution_completed',
+          `${resolvedProviderType} provider execution completed with status: ${result.status} (${result.executionTimeMs}ms).`,
+        );
         await this.runsRepo.save({
           id: savedRun.id,
           status: WorkflowRunStatus.Completed,
-          outputPayload: result.outputPayload,
+          outputPayload: {
+            ...(result.outputPayload ?? {}),
+            providerMetadata: result.metadata,
+          },
           completedAt,
         });
-        await log(
-          'completed',
-          'Workflow run completed successfully (simulated).',
-        );
+        await log('completed', 'Workflow run completed successfully.');
       } else {
         const message =
-          result.errorMessage ?? 'Workflow run failed during provider execution.';
+          result.errorMessage ??
+          'Workflow run failed during provider execution.';
+        await log(
+          'provider_execution_failed',
+          `${resolvedProviderType} provider execution failed: ${message} (${result.executionTimeMs}ms).`,
+        );
         await this.runsRepo.save({
           id: savedRun.id,
           status: WorkflowRunStatus.Failed,
@@ -146,7 +151,13 @@ export class WorkflowRunsService {
       }
     } catch (e) {
       const message =
-        e instanceof Error ? e.message : 'Workflow run failed (simulated).';
+        e instanceof Error
+          ? e.message
+          : 'Workflow run failed during provider execution.';
+      await log(
+        'provider_execution_failed',
+        `${requestedProviderType} provider execution failed: ${message}`,
+      );
       await this.runsRepo.save({
         id: savedRun.id,
         status: WorkflowRunStatus.Failed,
@@ -196,7 +207,8 @@ export class WorkflowRunsService {
       if (field.required) {
         const isEmptyString =
           typeof value === 'string' && value.trim().length === 0;
-        const isMissing = value === undefined || value === null || isEmptyString;
+        const isMissing =
+          value === undefined || value === null || isEmptyString;
         if (isMissing) {
           missing.push(fieldName);
           continue;
@@ -222,4 +234,3 @@ export class WorkflowRunsService {
     }
   }
 }
-
