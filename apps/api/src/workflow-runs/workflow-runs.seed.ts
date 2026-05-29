@@ -2,7 +2,11 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { FailureCategory } from '../common/enums/failure-category.enum';
+import { WorkflowEventType } from '../common/enums/workflow-event-type.enum';
 import { WorkflowRunStatus } from '../common/enums/workflow-run-status.enum';
+import { ProviderType } from '../providers/types/provider-type';
+import { WorkflowEventEntity } from '../workflow-events/workflow-event.entity';
 import { WorkflowEntity } from '../workflows/workflow.entity';
 import { WorkflowLogEntity } from '../workflow-logs/workflow-log.entity';
 import { WorkflowRunEntity } from './workflow-run.entity';
@@ -17,6 +21,8 @@ export class WorkflowRunsSeed implements OnModuleInit {
     private readonly runsRepo: Repository<WorkflowRunEntity>,
     @InjectRepository(WorkflowLogEntity)
     private readonly logsRepo: Repository<WorkflowLogEntity>,
+    @InjectRepository(WorkflowEventEntity)
+    private readonly eventsRepo: Repository<WorkflowEventEntity>,
     @InjectRepository(WorkflowEntity)
     private readonly workflowsRepo: Repository<WorkflowEntity>,
   ) {}
@@ -45,6 +51,10 @@ export class WorkflowRunsSeed implements OnModuleInit {
       inputPayload: Record<string, unknown>;
       outputPayload: Record<string, unknown> | null;
       errorMessage: string | null;
+      failureReason?: string | null;
+      failureCategory?: FailureCategory | null;
+      retryEligible?: boolean;
+      lastErrorAt?: Date | null;
       startedAt: Date | null;
       completedAt: Date | null;
       logs: Array<{ stepName: string; message: string }>;
@@ -52,7 +62,11 @@ export class WorkflowRunsSeed implements OnModuleInit {
       {
         slug: 'blog-draft',
         status: WorkflowRunStatus.Completed,
-        inputPayload: { topic: 'AI workflow dashboards', audience: 'Engineers', tone: 'Pragmatic' },
+        inputPayload: {
+          topic: 'AI workflow dashboards',
+          audience: 'Engineers',
+          tone: 'Pragmatic',
+        },
         outputPayload: {
           title: 'Blog Draft: AI workflow dashboards',
           meta: { audience: 'Engineers', tone: 'Pragmatic' },
@@ -74,54 +88,117 @@ export class WorkflowRunsSeed implements OnModuleInit {
         startedAt: mkDate(55),
         completedAt: mkDate(54),
         logs: [
-          { stepName: 'queued', message: 'Workflow run created and queued for simulated execution.' },
-          { stepName: 'validation', message: 'Validating input payload against workflow input schema.' },
-          { stepName: 'routing', message: 'Routing to workflow runner: blog-draft' },
-          { stepName: 'simulated_processing', message: 'Simulating processing (deterministic, no external calls).' },
-          { stepName: 'formatting', message: 'Formatting simulated output payload.' },
-          { stepName: 'completed', message: 'Workflow run completed successfully (simulated).' },
+          {
+            stepName: 'queued',
+            message: 'Workflow run created and queued for simulated execution.',
+          },
+          {
+            stepName: 'validation',
+            message: 'Validating input payload against workflow input schema.',
+          },
+          {
+            stepName: 'routing',
+            message: 'Routing to workflow runner: blog-draft',
+          },
+          {
+            stepName: 'simulated_processing',
+            message:
+              'Simulating processing (deterministic, no external calls).',
+          },
+          {
+            stepName: 'formatting',
+            message: 'Formatting simulated output payload.',
+          },
+          {
+            stepName: 'completed',
+            message: 'Workflow run completed successfully (simulated).',
+          },
         ],
       },
       {
         slug: 'report-summary',
         status: WorkflowRunStatus.Failed,
-        inputPayload: { reportText: 'Quarterly report text (sanitized sample)...', summaryLength: 'short' },
+        inputPayload: {
+          reportText: 'Quarterly report text (sanitized sample)...',
+          summaryLength: 'short',
+        },
         outputPayload: null,
-        errorMessage: 'Simulated failure: output formatting step encountered an unexpected edge case.',
+        errorMessage:
+          'Simulated failure: output formatting step encountered an unexpected edge case.',
+        failureReason:
+          'Simulated failure: output formatting step encountered an unexpected edge case.',
+        failureCategory: FailureCategory.SYSTEM,
+        retryEligible: false,
+        lastErrorAt: mkDate(31),
         startedAt: mkDate(32),
         completedAt: mkDate(31),
         logs: [
-          { stepName: 'queued', message: 'Workflow run created and queued for simulated execution.' },
-          { stepName: 'validation', message: 'Validating input payload against workflow input schema.' },
-          { stepName: 'routing', message: 'Routing to workflow runner: report-summary' },
-          { stepName: 'simulated_processing', message: 'Simulating processing (deterministic, no external calls).' },
-          { stepName: 'failed', message: 'Simulated failure: output formatting step encountered an unexpected edge case.' },
+          {
+            stepName: 'queued',
+            message: 'Workflow run created and queued for simulated execution.',
+          },
+          {
+            stepName: 'validation',
+            message: 'Validating input payload against workflow input schema.',
+          },
+          {
+            stepName: 'routing',
+            message: 'Routing to workflow runner: report-summary',
+          },
+          {
+            stepName: 'simulated_processing',
+            message:
+              'Simulating processing (deterministic, no external calls).',
+          },
+          {
+            stepName: 'failed',
+            message:
+              'Simulated failure: output formatting step encountered an unexpected edge case.',
+          },
         ],
       },
       {
         slug: 'intake-classification',
         status: WorkflowRunStatus.Running,
-        inputPayload: { intakeText: 'Customer asked for a change request with high urgency.' },
+        inputPayload: {
+          intakeText: 'Customer asked for a change request with high urgency.',
+        },
         outputPayload: null,
         errorMessage: null,
         startedAt: mkDate(7),
         completedAt: null,
         logs: [
-          { stepName: 'queued', message: 'Workflow run created and queued for simulated execution.' },
-          { stepName: 'routing', message: 'Routing to workflow runner: intake-classification' },
-          { stepName: 'simulated_processing', message: 'Simulating processing (deterministic, no external calls).' },
+          {
+            stepName: 'queued',
+            message: 'Workflow run created and queued for simulated execution.',
+          },
+          {
+            stepName: 'routing',
+            message: 'Routing to workflow runner: intake-classification',
+          },
+          {
+            stepName: 'simulated_processing',
+            message:
+              'Simulating processing (deterministic, no external calls).',
+          },
         ],
       },
       {
         slug: 'meeting-summary',
         status: WorkflowRunStatus.Queued,
-        inputPayload: { notesText: '- Discussed milestones\n- Identified risks\n- Next steps agreed' },
+        inputPayload: {
+          notesText:
+            '- Discussed milestones\n- Identified risks\n- Next steps agreed',
+        },
         outputPayload: null,
         errorMessage: null,
         startedAt: null,
         completedAt: null,
         logs: [
-          { stepName: 'queued', message: 'Workflow run created and queued for simulated execution.' },
+          {
+            stepName: 'queued',
+            message: 'Workflow run created and queued for simulated execution.',
+          },
         ],
       },
     ];
@@ -138,13 +215,17 @@ export class WorkflowRunsSeed implements OnModuleInit {
           outputPayload: sample.outputPayload,
           status: sample.status,
           errorMessage: sample.errorMessage,
+          failureReason: sample.failureReason ?? null,
+          failureCategory: sample.failureCategory ?? null,
+          retryEligible: sample.retryEligible ?? false,
+          lastErrorAt: sample.lastErrorAt ?? null,
           startedAt: sample.startedAt,
           completedAt: sample.completedAt,
         }),
       );
 
       await this.logsRepo.save(
-        sample.logs.map((l, idx) =>
+        sample.logs.map((l) =>
           this.logsRepo.create({
             workflowRunId: run.id,
             stepName: l.stepName,
@@ -152,8 +233,96 @@ export class WorkflowRunsSeed implements OnModuleInit {
           }),
         ),
       );
+
+      await this.eventsRepo.save(
+        this.buildSeedEvents(run.id, workflow.providerType, sample).map(
+          (event) => this.eventsRepo.create(event),
+        ),
+      );
     }
 
     this.logger.log(`Seeded sample runs: ${samples.length}`);
+  }
+
+  private buildSeedEvents(
+    runId: string,
+    providerType: ProviderType | null | undefined,
+    sample: {
+      status: WorkflowRunStatus;
+      startedAt: Date | null;
+      errorMessage: string | null;
+      failureCategory?: FailureCategory | null;
+    },
+  ): Array<{
+    runId: string;
+    type: WorkflowEventType;
+    message: string;
+  }> {
+    const provider = providerType ?? ProviderType.Simulated;
+    const events: Array<{
+      runId: string;
+      type: WorkflowEventType;
+      message: string;
+    }> = [
+      {
+        runId,
+        type: WorkflowEventType.RUN_CREATED,
+        message: 'Run created and queued for execution.',
+      },
+    ];
+
+    if (sample.startedAt) {
+      events.push(
+        {
+          runId,
+          type: WorkflowEventType.VALIDATION_STARTED,
+          message: 'Validation started for workflow input payload.',
+        },
+        {
+          runId,
+          type: WorkflowEventType.RUN_STARTED,
+          message: 'Run started.',
+        },
+        {
+          runId,
+          type: WorkflowEventType.PROVIDER_SELECTED,
+          message: `Provider selected: ${provider}.`,
+        },
+        {
+          runId,
+          type: WorkflowEventType.PROVIDER_REQUEST_SENT,
+          message: `Provider request sent: ${provider}.`,
+        },
+      );
+    }
+
+    if (
+      sample.status === WorkflowRunStatus.Completed ||
+      sample.status === WorkflowRunStatus.Failed
+    ) {
+      events.push({
+        runId,
+        type: WorkflowEventType.PROVIDER_RESPONSE_RECEIVED,
+        message: `Provider response received with status: ${sample.status}.`,
+      });
+    }
+
+    if (sample.status === WorkflowRunStatus.Completed) {
+      events.push({
+        runId,
+        type: WorkflowEventType.RUN_COMPLETED,
+        message: 'Run completed successfully.',
+      });
+    }
+
+    if (sample.status === WorkflowRunStatus.Failed) {
+      events.push({
+        runId,
+        type: WorkflowEventType.RUN_FAILED,
+        message: `Run failed: ${sample.failureCategory ?? FailureCategory.UNKNOWN}.`,
+      });
+    }
+
+    return events;
   }
 }

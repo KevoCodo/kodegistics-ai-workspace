@@ -5,6 +5,13 @@ export type ApiError = {
 
 export type WorkflowStatus = "active" | "inactive";
 export type WorkflowRunStatus = "queued" | "running" | "completed" | "failed";
+export type FailureCategory =
+  | "provider_error"
+  | "timeout"
+  | "network"
+  | "validation"
+  | "system"
+  | "unknown";
 export type ProviderType =
   | "simulated"
   | "openai"
@@ -110,6 +117,10 @@ export type WorkflowRun = {
   outputPayload: Record<string, unknown> | null;
   status: WorkflowRunStatus;
   errorMessage: string | null;
+  failureReason: string | null;
+  failureCategory: FailureCategory | null;
+  retryEligible: boolean;
+  lastErrorAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
   createdAt: string;
@@ -120,6 +131,14 @@ export type WorkflowLog = {
   id: string;
   workflowRunId: string;
   stepName: string;
+  message: string;
+  createdAt: string;
+};
+
+export type WorkflowEvent = {
+  id: string;
+  runId: string;
+  type: string;
   message: string;
   createdAt: string;
 };
@@ -278,5 +297,18 @@ export const api = {
     return fetchJson(`/workflow-runs/${encodeURIComponent(runId)}/logs`, {
       cache: "no-store",
     });
+  },
+  async listRunEvents(runId: string): Promise<WorkflowEvent[]> {
+    return fetchJson(`/workflow-runs/${encodeURIComponent(runId)}/events`, {
+      cache: "no-store",
+    });
+  },
+  async listRecentWorkflowEvents(limit = 25): Promise<WorkflowEvent[]> {
+    return fetchJson(
+      `/workflow-events/recent?limit=${encodeURIComponent(String(limit))}`,
+      {
+        cache: "no-store",
+      },
+    );
   },
 };

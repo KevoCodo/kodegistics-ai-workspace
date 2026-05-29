@@ -8,12 +8,18 @@ import { WorkflowRunsModule } from './workflow-runs/workflow-runs.module';
 import { WorkflowLogsModule } from './workflow-logs/workflow-logs.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { ProvidersModule } from './providers/providers.module';
+import { WorkflowEventsModule } from './workflow-events/workflow-events.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['apps/api/.env', 'apps/api/.env.local', '.env', '.env.local'],
+      envFilePath: [
+        'apps/api/.env',
+        'apps/api/.env.local',
+        '.env',
+        '.env.local',
+      ],
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -24,7 +30,8 @@ import { ProvidersModule } from './providers/providers.module';
         const synchronize =
           synchronizeRaw != null
             ? synchronizeRaw === 'true'
-            : (config.get<string>('NODE_ENV') ?? 'development') !== 'production';
+            : (config.get<string>('NODE_ENV') ?? 'development') !==
+              'production';
 
         return {
           type: 'postgres' as const,
@@ -32,7 +39,8 @@ import { ProvidersModule } from './providers/providers.module';
           port: Number.isFinite(port) ? port : 5432,
           username: config.get<string>('DATABASE_USER') ?? 'postgres',
           password: config.get<string>('DATABASE_PASSWORD') ?? 'postgres',
-          database: config.get<string>('DATABASE_NAME') ?? 'workflow_ai_dashboard',
+          database:
+            config.get<string>('DATABASE_NAME') ?? 'workflow_ai_dashboard',
           autoLoadEntities: true,
           synchronize,
         };
@@ -41,6 +49,7 @@ import { ProvidersModule } from './providers/providers.module';
     WorkflowsModule,
     WorkflowRunsModule,
     WorkflowLogsModule,
+    WorkflowEventsModule,
     AnalyticsModule,
     ProvidersModule,
   ],

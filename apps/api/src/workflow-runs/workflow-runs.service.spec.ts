@@ -1,8 +1,11 @@
 import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
+import { FailureCategory } from '../common/enums/failure-category.enum';
+import { WorkflowEventType } from '../common/enums/workflow-event-type.enum';
 import { WorkflowRunStatus } from '../common/enums/workflow-run-status.enum';
 import { ProviderRegistryService } from '../providers/registry/provider-registry.service';
 import { ProviderType } from '../providers/types/provider-type';
+import { WorkflowEventsService } from '../workflow-events/workflow-events.service';
 import { WorkflowEntity } from '../workflows/workflow.entity';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { WorkflowLogEntity } from '../workflow-logs/workflow-log.entity';
@@ -28,10 +31,15 @@ describe('WorkflowRunsService provider execution', () => {
       outputPayload: null,
       status: WorkflowRunStatus.Queued,
       errorMessage: null,
+      failureReason: null,
+      failureCategory: null,
+      retryEligible: false,
+      lastErrorAt: null,
       startedAt: null,
       completedAt: null,
     } as unknown as WorkflowRunEntity;
     const logRows: Array<{ stepName: string; message: string }> = [];
+    const eventRows: Array<{ type: WorkflowEventType; message: string }> = [];
     const runsRepo = {
       create: jest.fn(
         (data: Partial<WorkflowRunEntity>): WorkflowRunEntity => ({
@@ -83,19 +91,32 @@ describe('WorkflowRunsService provider execution', () => {
     const providerRegistry = {
       resolve: jest.fn(() => provider),
     };
+    const workflowEventsService = {
+      record: jest.fn(
+        (
+          _runId: string,
+          type: WorkflowEventType,
+          message: string,
+        ): Promise<{ type: WorkflowEventType; message: string }> => {
+          eventRows.push({ type, message });
+          return Promise.resolve({ type, message });
+        },
+      ),
+    };
     const service = new WorkflowRunsService(
       runsRepo as unknown as Repository<WorkflowRunEntity>,
       logsRepo as unknown as Repository<WorkflowLogEntity>,
       workflowsService as unknown as WorkflowsService,
       new ConfigService({ SIMULATION_STEP_DELAY_MS: '0' }),
       providerRegistry as unknown as ProviderRegistryService,
+      workflowEventsService as unknown as WorkflowEventsService,
     );
 
-    return { service, runState, logRows, providerRegistry };
+    return { service, runState, logRows, eventRows, providerRegistry };
   }
 
   it('defaults missing provider type to simulated and records completion logs', async () => {
-    const { service, runState, logRows, providerRegistry } = setup(
+    const { service, runState, logRows, eventRows, providerRegistry } = setup(
       WorkflowRunStatus.Completed,
     );
 
@@ -115,15 +136,30 @@ describe('WorkflowRunsService provider execution', () => {
       result: 'ok',
       providerMetadata: { provider: ProviderType.Simulated },
     });
+    expect(eventRows.map((row) => row.type)).toEqual([
+      WorkflowEventType.RUN_CREATED,
+      WorkflowEventType.VALIDATION_STARTED,
+      WorkflowEventType.RUN_STARTED,
+      WorkflowEventType.PROVIDER_SELECTED,
+      WorkflowEventType.PROVIDER_REQUEST_SENT,
+      WorkflowEventType.PROVIDER_RESPONSE_RECEIVED,
+      WorkflowEventType.RUN_COMPLETED,
+    ]);
   });
 
   it('records a provider execution failure and preserves failed lifecycle status', async () => {
-    const { service, runState, logRows } = setup(WorkflowRunStatus.Failed);
+    const { service, runState, logRows, eventRows } = setup(
+      WorkflowRunStatus.Failed,
+    );
 
     await service.create({ workflowSlug: workflow.slug, inputPayload: {} });
 
     expect(runState.status).toBe(WorkflowRunStatus.Failed);
     expect(runState.errorMessage).toBe('Provider unavailable.');
+    expect(runState.failureReason).toBe('Provider unavailable.');
+    expect(runState.failureCategory).toBe(FailureCategory.PROVIDER_ERROR);
+    expect(runState.retryEligible).toBe(true);
+    expect(runState.lastErrorAt).toBeInstanceOf(Date);
     expect(logRows.map((row) => row.stepName)).toContain(
       'provider_execution_failed',
     );
@@ -131,5 +167,14 @@ describe('WorkflowRunsService provider execution', () => {
       logRows.find((row) => row.stepName === 'provider_execution_failed')
         ?.message,
     ).toContain('simulated provider execution failed: Provider unavailable.');
+    expect(eventRows.map((row) => row.type)).toEqual([
+      WorkflowEventType.RUN_CREATED,
+      WorkflowEventType.VALIDATION_STARTED,
+      WorkflowEventType.RUN_STARTED,
+      WorkflowEventType.PROVIDER_SELECTED,
+      WorkflowEventType.PROVIDER_REQUEST_SENT,
+      WorkflowEventType.PROVIDER_RESPONSE_RECEIVED,
+      WorkflowEventType.RUN_FAILED,
+    ]);
   });
 });

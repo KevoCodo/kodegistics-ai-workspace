@@ -9,6 +9,8 @@ The system is split into a web UI (Next.js) and an API server (NestJS). The back
 - Display provider availability, safe returned metadata, and provider lifecycle log events
 - Collect workflow run inputs (schema-driven forms)
 - Display run status, execution timeline logs, timestamps, and final output payload
+- Display structured failure metadata for failed runs without exposing retry actions
+- Display normalized workflow events as an execution timeline
 - Provide a clean dashboard UX suitable for a portfolio walkthrough
 
 ## Backend responsibilities
@@ -17,6 +19,8 @@ The system is split into a web UI (Next.js) and an API server (NestJS). The back
 - Orchestrate the run lifecycle (`queued` -> `running` -> `completed` / `failed`)
 - Route execution through a provider registry (adapter pattern)
 - Execute the selected provider and emit ordered provider lifecycle logs
+- Classify execution failures into stable categories with retry-readiness metadata
+- Record normalized workflow events for lifecycle and provider execution milestones
 - Persist run outputs as structured JSON payloads
 - Provide lightweight analytics endpoints for dashboard observability (overview, status breakdown, usage)
 
@@ -57,6 +61,12 @@ Workflows include a `providerType` field that selects which execution provider i
 7. `GET /workflow-runs/:id/logs` - fetch logs
 8. `GET /analytics/*` - compute simple observability metrics for the dashboard
 9. `GET /providers` - list providers and safe configuration availability (architecture readiness)
+
+## Failure classification
+Failed runs store a public-safe reason, category, retry eligibility flag, and last error timestamp. Retry eligibility is calculated for future readiness only; no retry execution is implemented in the MVP.
+
+## Workflow events
+Workflow events are normalized lifecycle records separate from detailed execution logs. Events use stable types such as `RUN_CREATED`, `RUN_STARTED`, `PROVIDER_SELECTED`, `PROVIDER_REQUEST_SENT`, `PROVIDER_RESPONSE_RECEIVED`, `RUN_COMPLETED`, and `RUN_FAILED`. This keeps the execution timeline readable while leaving room for future retries, human review, evaluation scoring, multi-provider execution, and audit history.
 
 ## Seeding (demo readiness)
 - Workflows are seeded on API startup (idempotent upsert by `slug`).

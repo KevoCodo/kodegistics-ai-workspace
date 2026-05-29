@@ -98,7 +98,7 @@ export class OpenAIWorkflowProvider implements WorkflowExecutionProvider {
         return this.failureResult(
           startedAt,
           model,
-          'OpenAI provider returned no text output.',
+          'Invalid response schema: OpenAI provider returned no text output.',
         );
       }
 
@@ -122,11 +122,11 @@ export class OpenAIWorkflowProvider implements WorkflowExecutionProvider {
           },
         ],
       };
-    } catch {
+    } catch (e) {
       return this.failureResult(
         startedAt,
         model,
-        'OpenAI provider request failed unexpectedly.',
+        this.toSafeRequestErrorMessage(e),
       );
     }
   }
@@ -174,6 +174,30 @@ export class OpenAIWorkflowProvider implements WorkflowExecutionProvider {
         },
       ],
     };
+  }
+
+  private toSafeRequestErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      const normalized = error.message.toLowerCase();
+      if (
+        normalized.includes('fetch failed') ||
+        normalized.includes('econn') ||
+        normalized.includes('enotfound') ||
+        normalized.includes('network')
+      ) {
+        return 'Connection failure: OpenAI provider request could not reach the service.';
+      }
+
+      if (
+        normalized.includes('timeout') ||
+        normalized.includes('timed out') ||
+        normalized.includes('aborted')
+      ) {
+        return 'Request timeout: OpenAI provider request did not complete in time.';
+      }
+    }
+
+    return 'OpenAI provider request failed unexpectedly.';
   }
 
   private buildMetadata(

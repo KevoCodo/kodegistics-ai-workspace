@@ -77,6 +77,18 @@ This roadmap keeps the project focused and portfolio-friendly. Each phase should
 - Display coming-soon provider options in the UI without enabling execution
 - Defer retry state fields until a future phase defines retry behavior
 
+## Phase 15A: Workflow failure classification foundation (completed)
+- Add centralized failure categories for provider, timeout, network, validation, system, and unknown failures
+- Persist failure reason, failure category, retry eligibility, and last error timestamp on failed runs
+- Calculate retry eligibility without implementing retry execution
+- Surface failure metadata in run detail and dashboard observability views
+
+## Phase 15B: Workflow event logging and execution timeline (completed)
+- Add a normalized `WorkflowEvent` model for run lifecycle milestones
+- Record execution events across validation, provider selection, provider request/response, completion, and failure
+- Expose workflow event APIs for run-specific and recent event timelines
+- Surface execution timeline panels in the dashboard and run detail UI
+
 ## Future phases (out of scope for MVP)
 - Additional optional real provider connectors behind feature flags
 - Streaming updates (SSE/WebSockets)

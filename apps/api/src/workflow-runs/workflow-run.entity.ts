@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { FailureCategory } from '../common/enums/failure-category.enum';
 import { WorkflowRunStatus } from '../common/enums/workflow-run-status.enum';
 import { WorkflowEntity } from '../workflows/workflow.entity';
 
@@ -40,6 +41,23 @@ export class WorkflowRunEntity {
   @Column({ type: 'text', name: 'error_message', nullable: true })
   errorMessage!: string | null;
 
+  @Column({ type: 'text', name: 'failure_reason', nullable: true })
+  failureReason!: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: FailureCategory,
+    name: 'failure_category',
+    nullable: true,
+  })
+  failureCategory!: FailureCategory | null;
+
+  @Column({ type: 'boolean', name: 'retry_eligible', default: false })
+  retryEligible!: boolean;
+
+  @Column({ type: 'timestamptz', name: 'last_error_at', nullable: true })
+  lastErrorAt!: Date | null;
+
   @Column({ type: 'timestamptz', name: 'started_at', nullable: true })
   startedAt!: Date | null;
 
@@ -52,4 +70,3 @@ export class WorkflowRunEntity {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt!: Date;
 }
-

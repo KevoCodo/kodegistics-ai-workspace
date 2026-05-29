@@ -45,8 +45,20 @@ A workflow run is a single execution instance of a workflow. It stores:
 - `status` (`queued` | `running` | `completed` | `failed`)
 - `inputPayload` (JSON), `outputPayload` (JSON or null)
 - `errorMessage` (string or null)
+- `failureReason`, `failureCategory`, `retryEligible`, `lastErrorAt` for structured failure observability
 - `startedAt`, `completedAt`
 - `createdAt`, `updatedAt`
+
+### Failure classification
+Failed workflow runs are classified into predictable categories:
+- `provider_error`
+- `timeout`
+- `network`
+- `validation`
+- `system`
+- `unknown`
+
+`timeout`, `network`, and `provider_error` failures are marked retry eligible for future readiness. The MVP does not implement retries, retry buttons, or retry execution.
 
 ### WorkflowLog
 A workflow log is an append-only record emitted during a run. In the MVP, logs are UI-friendly (step + message + timestamp).
@@ -56,6 +68,27 @@ A workflow log is an append-only record emitted during a run. In the MVP, logs a
 - `stepName`
 - `message`
 - `createdAt`
+
+### WorkflowEvent
+A workflow event is a normalized lifecycle record used for execution timelines and future audit history.
+
+**Key fields (implemented)**
+- `id`
+- `runId`
+- `type`
+- `message`
+- `createdAt`
+
+Supported event types:
+- `RUN_CREATED`
+- `RUN_STARTED`
+- `PROVIDER_SELECTED`
+- `PROVIDER_REQUEST_SENT`
+- `PROVIDER_RESPONSE_RECEIVED`
+- `VALIDATION_STARTED`
+- `VALIDATION_FAILED`
+- `RUN_COMPLETED`
+- `RUN_FAILED`
 
 ## Execution statuses
 - `queued`: accepted and waiting to start
@@ -76,10 +109,11 @@ Execution is synchronous inside the API service:
   - `provider_execution_completed` (or `provider_execution_failed`)
   - `completed` (or `failed`)
 - The run is updated to `running`, then `completed` with an output payload (or `failed` with an error message).
+- The service also records normalized workflow events for dashboard and run-detail timelines. Events are read-only observability records; they do not trigger retries or review workflows.
 
 The optional OpenAI adapter may call the OpenAI API only for explicitly configured, sanitized demo workflows. No external workflow tools are called.
 
-`retry_count` and `retry_eligible` remain future readiness fields rather than persisted MVP state because no retry behavior is implemented in this phase.
+`retryEligible` is persisted as read-only failure metadata. Retry execution, retry counters, and retry policy remain future scope.
 
 ## Seed data (demo readiness)
 - Workflows are seeded on API startup (idempotent upsert by `slug`).
