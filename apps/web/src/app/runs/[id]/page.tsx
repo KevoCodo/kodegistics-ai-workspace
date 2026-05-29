@@ -10,12 +10,14 @@ import {
   getApiBaseUrl,
   getApiBaseUrlOrThrow,
   type ProviderMetadata,
+  type ProviderStatus,
   type WorkflowEvent,
   type WorkflowLog,
   type WorkflowRun,
 } from "../../../lib/api";
 import { RunStatusBadge } from "../../../components/status-badges";
 import { Badge } from "../../../components/ui/badge";
+import { RetryRunPanel } from "../../../components/retry-run-panel";
 import { formatDateTime, formatRelativeTime } from "../../../lib/time";
 
 async function getRun(id: string): Promise<WorkflowRun> {
@@ -54,6 +56,15 @@ async function getRunEvents(id: string): Promise<WorkflowEvent[]> {
     throw new Error(`Events not found for run: ${id}`);
   }
   return (await res.json()) as WorkflowEvent[];
+}
+
+async function getProviders(): Promise<ProviderStatus[]> {
+  const baseUrl = getApiBaseUrlOrThrow();
+  const res = await fetch(`${baseUrl}/providers`, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error("Providers not available");
+  }
+  return (await res.json()) as ProviderStatus[];
 }
 
 function getProviderMetadata(run: WorkflowRun): ProviderMetadata | null {
@@ -112,8 +123,21 @@ function workflowEventVariant(
   if (type === "RUN_COMPLETED" || type === "PROVIDER_RESPONSE_RECEIVED") {
     return "success";
   }
-  if (type === "RUN_FAILED" || type === "VALIDATION_FAILED") return "danger";
-  if (type === "PROVIDER_REQUEST_SENT" || type === "RUN_STARTED") {
+  if (
+    type === "RUN_FAILED" ||
+    type === "VALIDATION_FAILED" ||
+    type === "RETRY_REJECTED"
+  ) {
+    return "danger";
+  }
+  if (
+    type === "PROVIDER_REQUEST_SENT" ||
+    type === "RUN_STARTED" ||
+    type === "RETRY_REQUESTED" ||
+    type === "RETRY_APPROVED" ||
+    type === "RETRY_RUN_CREATED" ||
+    type === "RETRIED_FROM_RUN"
+  ) {
     return "warning";
   }
   return "neutral";
@@ -129,13 +153,15 @@ export default async function RunDetailPage({
   let run: WorkflowRun | null = null;
   let logs: WorkflowLog[] = [];
   let events: WorkflowEvent[] = [];
+  let providers: ProviderStatus[] = [];
   let errorMessage: string | null = null;
 
   try {
-    [run, logs, events] = await Promise.all([
+    [run, logs, events, providers] = await Promise.all([
       getRun(id),
       getRunLogs(id),
       getRunEvents(id),
+      getProviders().catch(() => []),
     ]);
   } catch (e) {
     errorMessage = e instanceof Error ? e.message : "Failed to load run";
@@ -194,6 +220,9 @@ export default async function RunDetailPage({
   );
   const providerMetadata = getProviderMetadata(run);
   const visibleError = displayRunError(run);
+  const runProviderType = run.workflow?.providerType ?? "simulated";
+  const providerStatus =
+    providers.find((provider) => provider.type === runProviderType) ?? null;
   const providerLifecycleSteps = new Set([
     "provider_resolved",
     "provider_execution_started",
@@ -281,6 +310,22 @@ export default async function RunDetailPage({
               </div>
             </div>
 
+            {run.retriedFromRunId ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="warning">
+                    Retry attempt {run.retryCount ?? 0} of {run.maxRetries ?? 3}
+                  </Badge>
+                  <span className="text-xs font-medium">
+                    This run was created from a failed retry-eligible run.
+                  </span>
+                </div>
+                <div className="mt-2 text-xs">
+                  Retried from: <code>{run.retriedFromRunId}</code>
+                </div>
+              </div>
+            ) : null}
+
             {visibleError ? (
               <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30">
                 <div className="text-xs font-medium">
@@ -311,6 +356,8 @@ export default async function RunDetailPage({
                 </div>
               </div>
             ) : null}
+
+            <RetryRunPanel run={run} providerStatus={providerStatus} />
 
             {providerMetadata ? (
               <div className="rounded-lg border border-border bg-muted/40 p-3">

@@ -95,8 +95,21 @@ function workflowEventVariant(
   if (type === "RUN_COMPLETED" || type === "PROVIDER_RESPONSE_RECEIVED") {
     return "success";
   }
-  if (type === "RUN_FAILED" || type === "VALIDATION_FAILED") return "danger";
-  if (type === "PROVIDER_REQUEST_SENT" || type === "RUN_STARTED") {
+  if (
+    type === "RUN_FAILED" ||
+    type === "VALIDATION_FAILED" ||
+    type === "RETRY_REJECTED"
+  ) {
+    return "danger";
+  }
+  if (
+    type === "PROVIDER_REQUEST_SENT" ||
+    type === "RUN_STARTED" ||
+    type === "RETRY_REQUESTED" ||
+    type === "RETRY_APPROVED" ||
+    type === "RETRY_RUN_CREATED" ||
+    type === "RETRIED_FROM_RUN"
+  ) {
     return "warning";
   }
   return "neutral";

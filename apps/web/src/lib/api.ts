@@ -113,6 +113,9 @@ export type WorkflowRun = {
   id: string;
   workflowId: string;
   workflow?: Workflow;
+  retriedFromRunId: string | null;
+  retryCount: number;
+  maxRetries: number;
   inputPayload: Record<string, unknown>;
   outputPayload: Record<string, unknown> | null;
   status: WorkflowRunStatus;
@@ -140,6 +143,7 @@ export type WorkflowEvent = {
   runId: string;
   type: string;
   message: string;
+  metadata: Record<string, unknown> | null;
   createdAt: string;
 };
 
@@ -291,6 +295,11 @@ export const api = {
     return fetchJson("/workflow-runs", {
       method: "POST",
       body: JSON.stringify(params),
+    });
+  },
+  async retryRun(id: string): Promise<WorkflowRun> {
+    return fetchJson(`/workflow-runs/${encodeURIComponent(id)}/retry`, {
+      method: "POST",
     });
   },
   async listRunLogs(runId: string): Promise<WorkflowLog[]> {
