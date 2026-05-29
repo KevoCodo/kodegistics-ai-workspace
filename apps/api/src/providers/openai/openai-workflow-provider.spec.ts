@@ -106,4 +106,42 @@ describe('OpenAIWorkflowProvider', () => {
     );
     expect(JSON.stringify(result)).not.toContain('test-key');
   });
+
+  it('returns a validation failure when the provider response shape is unusable', async () => {
+    const provider = new OpenAIWorkflowProvider(
+      new ConfigService({
+        OPENAI_PROVIDER_ENABLED: 'true',
+        OPENAI_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ output: [] }),
+    } as Response);
+
+    const result = await provider.execute({ workflow, inputPayload: {} });
+
+    expect(result.status).toBe(WorkflowRunStatus.Failed);
+    expect(result.errorMessage).toBe(
+      'Invalid response schema: OpenAI provider returned no text output.',
+    );
+  });
+
+  it('returns a clean network failure without exposing credentials', async () => {
+    const provider = new OpenAIWorkflowProvider(
+      new ConfigService({
+        OPENAI_PROVIDER_ENABLED: 'true',
+        OPENAI_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('fetch failed'));
+
+    const result = await provider.execute({ workflow, inputPayload: {} });
+
+    expect(result.status).toBe(WorkflowRunStatus.Failed);
+    expect(result.errorMessage).toBe(
+      'Connection failure: OpenAI provider request could not reach the service.',
+    );
+    expect(JSON.stringify(result)).not.toContain('test-key');
+  });
 });
