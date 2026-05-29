@@ -18,12 +18,14 @@ export class WorkflowEventsService {
     runId: string,
     type: WorkflowEventType,
     message: string,
+    metadata: Record<string, unknown> | null = null,
   ): Promise<WorkflowEventEntity> {
     return this.eventsRepo.save(
       this.eventsRepo.create({
         runId,
         type,
         message,
+        metadata,
       }),
     );
   }

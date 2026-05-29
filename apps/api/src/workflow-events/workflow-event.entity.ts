@@ -30,6 +30,9 @@ export class WorkflowEventEntity {
   @Column({ type: 'text' })
   message!: string;
 
+  @Column({ type: 'jsonb', nullable: true })
+  metadata!: Record<string, unknown> | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt!: Date;
 }

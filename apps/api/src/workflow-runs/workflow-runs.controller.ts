@@ -20,5 +20,9 @@ export class WorkflowRunsController {
   async create(@Body() dto: CreateWorkflowRunDto) {
     return this.workflowRunsService.create(dto);
   }
-}
 
+  @Post(':id/retry')
+  async retry(@Param('id') id: string) {
+    return this.workflowRunsService.retry(id);
+  }
+}

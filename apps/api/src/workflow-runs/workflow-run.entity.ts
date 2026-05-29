@@ -25,6 +25,20 @@ export class WorkflowRunEntity {
   @JoinColumn({ name: 'workflow_id' })
   workflow!: WorkflowEntity;
 
+  @Index()
+  @Column({ type: 'uuid', name: 'retried_from_run_id', nullable: true })
+  retriedFromRunId!: string | null;
+
+  @ManyToOne(() => WorkflowRunEntity, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'retried_from_run_id' })
+  retriedFromRun!: WorkflowRunEntity | null;
+
+  @Column({ type: 'int', name: 'retry_count', default: 0 })
+  retryCount!: number;
+
+  @Column({ type: 'int', name: 'max_retries', default: 3 })
+  maxRetries!: number;
+
   @Column({ type: 'jsonb', name: 'input_payload' })
   inputPayload!: Record<string, unknown>;
 

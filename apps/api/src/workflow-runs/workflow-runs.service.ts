@@ -12,11 +12,20 @@ import { WorkflowRunStatus } from '../common/enums/workflow-run-status.enum';
 import { ProviderRegistryService } from '../providers/registry/provider-registry.service';
 import { ProviderType } from '../providers/types/provider-type';
 import { WorkflowEventsService } from '../workflow-events/workflow-events.service';
+import { WorkflowEntity } from '../workflows/workflow.entity';
 import { WorkflowsService } from '../workflows/workflows.service';
 import { WorkflowLogEntity } from '../workflow-logs/workflow-log.entity';
 import { CreateWorkflowRunDto } from './dto/create-workflow-run.dto';
 import { classifyWorkflowFailure } from './failure-classifier';
 import { WorkflowRunEntity } from './workflow-run.entity';
+
+type ExecuteRunParams = {
+  workflow: WorkflowEntity;
+  inputPayload: Record<string, unknown>;
+  retriedFromRunId?: string | null;
+  retryCount?: number;
+  maxRetries?: number;
+};
 
 @Injectable()
 export class WorkflowRunsService {
@@ -63,9 +72,117 @@ export class WorkflowRunsService {
     const inputPayload = dto.inputPayload ?? {};
     this.assertInputPayloadMatchesSchema(workflow.inputSchema, inputPayload);
 
+    return this.createAndExecuteRun({ workflow, inputPayload });
+  }
+
+  async retry(id: string): Promise<WorkflowRunEntity> {
+    const originalRun = await this.getById(id);
+
+    await this.recordRetryEvent(
+      originalRun.id,
+      WorkflowEventType.RETRY_REQUESTED,
+      'Retry requested for failed workflow run.',
+      { originalRunId: originalRun.id },
+    );
+    await this.appendLog(originalRun.id, 'retry_requested', 'Retry requested.');
+
+    const rejectionReason = this.getRetryRejectionReason(originalRun);
+    if (rejectionReason) {
+      await this.rejectRetry(originalRun, rejectionReason);
+      throw new BadRequestException(rejectionReason);
+    }
+
+    if (!originalRun.workflow?.slug) {
+      const message = 'Workflow template is no longer available for this run.';
+      await this.rejectRetry(originalRun, message);
+      throw new BadRequestException(message);
+    }
+
+    const workflow = await this.workflowsService.findBySlug(
+      originalRun.workflow.slug,
+    );
+    if (!workflow) {
+      const message = 'Workflow template is no longer available for this run.';
+      await this.rejectRetry(originalRun, message);
+      throw new BadRequestException(message);
+    }
+
+    const providerType = workflow.providerType ?? ProviderType.Simulated;
+    const providerAvailability = this.providerRegistry
+      .listProviders()
+      .find((provider) => provider.type === providerType);
+    if (!providerAvailability?.implemented) {
+      const message =
+        'Selected provider is not implemented and cannot be retried.';
+      await this.rejectRetry(originalRun, message);
+      throw new BadRequestException(message);
+    }
+    if (!providerAvailability.enabled) {
+      const message =
+        'Selected provider is not available for retry in this environment.';
+      await this.rejectRetry(originalRun, message);
+      throw new BadRequestException(message);
+    }
+
+    const nextRetryCount = (originalRun.retryCount ?? 0) + 1;
+    const maxRetries = originalRun.maxRetries ?? 3;
+
+    await this.recordRetryEvent(
+      originalRun.id,
+      WorkflowEventType.RETRY_APPROVED,
+      `Retry approved for attempt ${nextRetryCount} of ${maxRetries}.`,
+      {
+        originalRunId: originalRun.id,
+        retryCount: nextRetryCount,
+        maxRetries,
+      },
+    );
+    await this.appendLog(
+      originalRun.id,
+      'retry_approved',
+      `Retry eligibility checked. Attempt ${nextRetryCount} of ${maxRetries} approved.`,
+    );
+
+    const retryRun = await this.createAndExecuteRun({
+      workflow,
+      inputPayload: originalRun.inputPayload ?? {},
+      retriedFromRunId: originalRun.id,
+      retryCount: nextRetryCount,
+      maxRetries,
+    });
+
+    await this.recordRetryEvent(
+      originalRun.id,
+      WorkflowEventType.RETRY_RUN_CREATED,
+      `Retry run created: ${retryRun.id}.`,
+      {
+        originalRunId: originalRun.id,
+        retryRunId: retryRun.id,
+        retryCount: nextRetryCount,
+      },
+    );
+    await this.appendLog(
+      originalRun.id,
+      'retry_run_created',
+      `Retry run created: ${retryRun.id}.`,
+    );
+
+    return retryRun;
+  }
+
+  private async createAndExecuteRun({
+    workflow,
+    inputPayload,
+    retriedFromRunId = null,
+    retryCount = 0,
+    maxRetries = 3,
+  }: ExecuteRunParams): Promise<WorkflowRunEntity> {
     const run = this.runsRepo.create({
       workflowId: workflow.id,
       workflow,
+      retriedFromRunId,
+      retryCount,
+      maxRetries,
       inputPayload,
       outputPayload: null,
       status: WorkflowRunStatus.Queued,
@@ -86,8 +203,17 @@ export class WorkflowRunsService {
       await this.appendLog(savedRun.id, stepName, message);
       if (delayMs > 0) await sleep(delayMs);
     };
-    const event = async (type: WorkflowEventType, message: string) => {
-      await this.workflowEventsService.record(savedRun.id, type, message);
+    const event = async (
+      type: WorkflowEventType,
+      message: string,
+      metadata: Record<string, unknown> | null = null,
+    ) => {
+      await this.workflowEventsService.record(
+        savedRun.id,
+        type,
+        message,
+        metadata,
+      );
     };
 
     await event(
@@ -98,6 +224,17 @@ export class WorkflowRunsService {
       'queued',
       'Workflow run created and queued for provider execution.',
     );
+    if (retriedFromRunId) {
+      await event(
+        WorkflowEventType.RETRIED_FROM_RUN,
+        `Retry run created from failed run: ${retriedFromRunId}.`,
+        { originalRunId: retriedFromRunId, retryCount, maxRetries },
+      );
+      await log(
+        'retried_from_run',
+        `Retry attempt ${retryCount} of ${maxRetries} created from run ${retriedFromRunId}.`,
+      );
+    }
 
     const requestedProviderType =
       workflow.providerType ?? ProviderType.Simulated;
@@ -233,6 +370,40 @@ export class WorkflowRunsService {
     }
 
     return this.getById(savedRun.id);
+  }
+
+  private getRetryRejectionReason(run: WorkflowRunEntity): string | null {
+    if (run.status !== WorkflowRunStatus.Failed) {
+      return 'Only failed workflow runs can be retried.';
+    }
+    if (!run.retryEligible) {
+      return 'This run is not retry eligible because the failure was not considered transient.';
+    }
+    const retryCount = run.retryCount ?? 0;
+    const maxRetries = run.maxRetries ?? 3;
+    if (retryCount >= maxRetries) {
+      return `Maximum retry attempts reached (${maxRetries}).`;
+    }
+    return null;
+  }
+
+  private async rejectRetry(run: WorkflowRunEntity, reason: string) {
+    await this.recordRetryEvent(
+      run.id,
+      WorkflowEventType.RETRY_REJECTED,
+      `Retry rejected: ${reason}`,
+      { originalRunId: run.id, reason },
+    );
+    await this.appendLog(run.id, 'retry_rejected', reason);
+  }
+
+  private async recordRetryEvent(
+    runId: string,
+    type: WorkflowEventType,
+    message: string,
+    metadata: Record<string, unknown>,
+  ) {
+    await this.workflowEventsService.record(runId, type, message, metadata);
   }
 
   private async appendLog(runId: string, stepName: string, message: string) {

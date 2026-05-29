@@ -211,6 +211,9 @@ export class WorkflowRunsSeed implements OnModuleInit {
         this.runsRepo.create({
           workflowId: workflow.id,
           workflow,
+          retriedFromRunId: null,
+          retryCount: 0,
+          maxRetries: 3,
           inputPayload: sample.inputPayload,
           outputPayload: sample.outputPayload,
           status: sample.status,
