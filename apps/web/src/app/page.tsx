@@ -10,6 +10,7 @@ import {
   type AnalyticsStatusBreakdown,
   type AnalyticsWorkflowUsageRow,
   type ProviderType,
+  type WorkflowEvent,
   type WorkflowRun,
 } from "../lib/api";
 import { Badge } from "../components/ui/badge";
@@ -37,6 +38,8 @@ type DashboardState =
       usage: AnalyticsWorkflowUsageRow[];
       breakdown: AnalyticsStatusBreakdown;
       providerCounts: Record<ProviderType, number>;
+      recentFailures: WorkflowRun[];
+      recentEvents: WorkflowEvent[];
     };
 
 function formatCount(n: number) {
@@ -67,6 +70,38 @@ function countRunsByProvider(
   );
 }
 
+function formatFailureCategory(value: string | null) {
+  if (!value) return "unclassified";
+  return value.replace(/_/g, " ");
+}
+
+function failureCategoryVariant(
+  value: string | null,
+): "neutral" | "warning" | "danger" {
+  if (
+    value === "provider_error" ||
+    value === "timeout" ||
+    value === "network"
+  ) {
+    return "warning";
+  }
+  if (value === "system" || value === "unknown") return "danger";
+  return "neutral";
+}
+
+function workflowEventVariant(
+  type: string,
+): "success" | "warning" | "danger" | "neutral" {
+  if (type === "RUN_COMPLETED" || type === "PROVIDER_RESPONSE_RECEIVED") {
+    return "success";
+  }
+  if (type === "RUN_FAILED" || type === "VALIDATION_FAILED") return "danger";
+  if (type === "PROVIDER_REQUEST_SENT" || type === "RUN_STARTED") {
+    return "warning";
+  }
+  return "neutral";
+}
+
 export default function DashboardPage() {
   const [state, setState] = useState<DashboardState>({ kind: "loading" });
   const apiBaseUrl = getApiBaseUrl();
@@ -75,7 +110,7 @@ export default function DashboardPage() {
     let cancelled = false;
     async function load() {
       try {
-        const [health, overview, usage, recent, breakdown, runs] =
+        const [health, overview, usage, recent, breakdown, runs, events] =
           await Promise.all([
             api.health().catch(() => null),
             api.analyticsOverview(),
@@ -83,6 +118,7 @@ export default function DashboardPage() {
             api.analyticsRecentActivity(),
             api.analyticsStatusBreakdown(),
             api.listRuns(),
+            api.listRecentWorkflowEvents(12),
           ]);
         if (cancelled) return;
         setState({
@@ -93,6 +129,10 @@ export default function DashboardPage() {
           recent,
           breakdown,
           providerCounts: countRunsByProvider(runs),
+          recentFailures: runs
+            .filter((run) => run.status === "failed")
+            .slice(0, 5),
+          recentEvents: events,
         });
       } catch (e) {
         if (cancelled) return;
@@ -401,6 +441,112 @@ export default function DashboardPage() {
             ) : (
               <div className="text-sm text-muted-foreground">
                 Loading breakdown...
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Execution Timeline</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              Recent normalized workflow events, newest first. This timeline is
+              designed for future retries, review steps, provider expansion, and
+              audit history without adding those behaviors yet.
+            </div>
+            {state.kind === "ready" && state.recentEvents.length > 0 ? (
+              <div className="relative">
+                <div className="absolute left-[9px] top-2 h-[calc(100%-16px)] w-px bg-border" />
+                <ul className="space-y-4">
+                  {state.recentEvents.map((event) => (
+                    <li key={event.id} className="relative pl-7">
+                      <span
+                        className="absolute left-1 top-2 h-4 w-4 rounded-full border border-border bg-background shadow-sm"
+                        aria-hidden="true"
+                      />
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <Badge variant={workflowEventVariant(event.type)}>
+                          {event.type.replace(/_/g, " ")}
+                        </Badge>
+                        <span className="text-[11px] text-muted-foreground">
+                          {formatDateTime(event.createdAt)}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        {event.message}
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        Run ID: <code>{event.runId}</code>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                No workflow events recorded yet.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
+
+      <section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Failure Classification</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              Recent failed runs grouped with structured failure metadata. Retry
+              eligibility is informational only; retries are not implemented in
+              this MVP.
+            </div>
+            {state.kind === "ready" && state.recentFailures.length > 0 ? (
+              <div className="space-y-3">
+                {state.recentFailures.map((run) => (
+                  <Link
+                    key={run.id}
+                    href={`/runs/${run.id}`}
+                    className="block rounded-lg border border-border bg-background/40 p-3 transition-colors hover:bg-muted/40"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">
+                          {run.workflow?.name ?? run.workflowId}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Last error: {formatDateTime(run.lastErrorAt)}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge
+                          variant={failureCategoryVariant(run.failureCategory)}
+                        >
+                          {formatFailureCategory(run.failureCategory)}
+                        </Badge>
+                        <Badge
+                          variant={run.retryEligible ? "warning" : "neutral"}
+                        >
+                          Retry eligible: {run.retryEligible ? "yes" : "no"}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                      {run.failureReason ??
+                        run.errorMessage ??
+                        "No reason recorded."}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                No classified failures available.
               </div>
             )}
           </CardContent>

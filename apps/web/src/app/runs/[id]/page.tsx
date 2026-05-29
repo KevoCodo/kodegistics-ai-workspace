@@ -10,6 +10,7 @@ import {
   getApiBaseUrl,
   getApiBaseUrlOrThrow,
   type ProviderMetadata,
+  type WorkflowEvent,
   type WorkflowLog,
   type WorkflowRun,
 } from "../../../lib/api";
@@ -43,6 +44,18 @@ async function getRunLogs(id: string): Promise<WorkflowLog[]> {
   return (await res.json()) as WorkflowLog[];
 }
 
+async function getRunEvents(id: string): Promise<WorkflowEvent[]> {
+  const baseUrl = getApiBaseUrlOrThrow();
+  const res = await fetch(
+    `${baseUrl}/workflow-runs/${encodeURIComponent(id)}/events`,
+    { cache: "no-store" },
+  );
+  if (!res.ok) {
+    throw new Error(`Events not found for run: ${id}`);
+  }
+  return (await res.json()) as WorkflowEvent[];
+}
+
 function getProviderMetadata(run: WorkflowRun): ProviderMetadata | null {
   const metadata = run.outputPayload?.providerMetadata;
   if (!metadata || typeof metadata !== "object") return null;
@@ -74,6 +87,38 @@ function displayRunError(run: WorkflowRun): string | null {
   return run.errorMessage;
 }
 
+function formatFailureCategory(value: string | null): string {
+  if (!value) return "-";
+  return value.replace(/_/g, " ");
+}
+
+function failureCategoryVariant(
+  value: string | null,
+): "neutral" | "warning" | "danger" {
+  if (
+    value === "provider_error" ||
+    value === "timeout" ||
+    value === "network"
+  ) {
+    return "warning";
+  }
+  if (value === "system" || value === "unknown") return "danger";
+  return "neutral";
+}
+
+function workflowEventVariant(
+  type: string,
+): "success" | "warning" | "danger" | "neutral" {
+  if (type === "RUN_COMPLETED" || type === "PROVIDER_RESPONSE_RECEIVED") {
+    return "success";
+  }
+  if (type === "RUN_FAILED" || type === "VALIDATION_FAILED") return "danger";
+  if (type === "PROVIDER_REQUEST_SENT" || type === "RUN_STARTED") {
+    return "warning";
+  }
+  return "neutral";
+}
+
 export default async function RunDetailPage({
   params,
 }: {
@@ -83,10 +128,15 @@ export default async function RunDetailPage({
   const apiBaseUrl = getApiBaseUrl();
   let run: WorkflowRun | null = null;
   let logs: WorkflowLog[] = [];
+  let events: WorkflowEvent[] = [];
   let errorMessage: string | null = null;
 
   try {
-    [run, logs] = await Promise.all([getRun(id), getRunLogs(id)]);
+    [run, logs, events] = await Promise.all([
+      getRun(id),
+      getRunLogs(id),
+      getRunEvents(id),
+    ]);
   } catch (e) {
     errorMessage = e instanceof Error ? e.message : "Failed to load run";
   }
@@ -138,6 +188,9 @@ export default async function RunDetailPage({
 
   const orderedLogs = [...logs].sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
+  const orderedEvents = [...events].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
   const providerMetadata = getProviderMetadata(run);
   const visibleError = displayRunError(run);
@@ -233,10 +286,29 @@ export default async function RunDetailPage({
                 <div className="text-xs font-medium">
                   Provider execution failed
                 </div>
-                <div className="mt-1 text-xs">
-                  Provider: <code>{run.workflow?.providerType ?? "-"}</code>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Badge variant={failureCategoryVariant(run.failureCategory)}>
+                    {formatFailureCategory(run.failureCategory)}
+                  </Badge>
+                  <Badge variant={run.retryEligible ? "warning" : "neutral"}>
+                    Retry eligible: {run.retryEligible ? "yes" : "no"}
+                  </Badge>
                 </div>
-                <div className="mt-1 text-sm">{visibleError}</div>
+                <dl className="mt-2 grid gap-2 text-xs md:grid-cols-2">
+                  <div>
+                    <dt>Provider</dt>
+                    <dd>
+                      <code>{run.workflow?.providerType ?? "-"}</code>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Last error</dt>
+                    <dd>{formatDateTime(run.lastErrorAt)}</dd>
+                  </div>
+                </dl>
+                <div className="mt-2 text-sm">
+                  {run.failureReason ?? visibleError}
+                </div>
               </div>
             ) : null}
 
@@ -287,35 +359,69 @@ export default async function RunDetailPage({
             <CardTitle>Execution timeline</CardTitle>
           </CardHeader>
           <CardContent>
-            {orderedLogs.length === 0 ? (
+            {orderedEvents.length === 0 ? (
               <div className="text-sm text-muted-foreground">
-                No logs available.
+                No events available.
               </div>
             ) : (
               <div className="relative">
                 <div className="absolute left-[9px] top-2 h-[calc(100%-16px)] w-px bg-border" />
                 <ul className="space-y-4">
-                  {orderedLogs.map((log) => (
-                    <li key={log.id} className="relative pl-7">
+                  {orderedEvents.map((event) => (
+                    <li key={event.id} className="relative pl-7">
                       <div className="absolute left-1 top-2 h-4 w-4 rounded-full border border-border bg-background shadow-sm" />
                       <div className="flex items-start justify-between gap-3">
-                        {providerLifecycleSteps.has(log.stepName) ? (
-                          <Badge variant="neutral">{log.stepName}</Badge>
-                        ) : (
-                          <code className="text-xs text-muted-foreground">
-                            {log.stepName}
-                          </code>
-                        )}
+                        <Badge variant={workflowEventVariant(event.type)}>
+                          {event.type.replace(/_/g, " ")}
+                        </Badge>
                         <span className="text-[11px] text-muted-foreground">
-                          {formatDateTime(log.createdAt)}
+                          {formatDateTime(event.createdAt)}
                         </span>
                       </div>
                       <div className="mt-1 text-sm text-muted-foreground">
-                        {log.message}
+                        {event.message}
                       </div>
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-3">
+          <CardHeader>
+            <CardTitle>Execution logs</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {orderedLogs.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                No logs available.
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                {orderedLogs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="rounded-lg border border-border bg-background/40 p-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {providerLifecycleSteps.has(log.stepName) ? (
+                        <Badge variant="neutral">{log.stepName}</Badge>
+                      ) : (
+                        <code className="text-xs text-muted-foreground">
+                          {log.stepName}
+                        </code>
+                      )}
+                      <span className="text-[11px] text-muted-foreground">
+                        {formatDateTime(log.createdAt)}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      {log.message}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
