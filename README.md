@@ -5,7 +5,7 @@ Public fullstack portfolio project demonstrating workflow orchestration patterns
 This repo is intentionally scoped as a public-safe MVP (not a production SaaS).
 
 ## Why This Project Exists
-Many “AI automation” demos stop at prompts. Real operational value comes from repeatable workflows, structured inputs/outputs, execution visibility, and traceability. This project is a public, sanitized showcase of those orchestration patterns without requiring external credentials or private data.
+Many "AI automation" demos stop at prompts. Real operational value comes from repeatable workflows, structured inputs/outputs, execution visibility, and traceability. This project is a public, sanitized showcase of those orchestration patterns without requiring external credentials or private data.
 
 ## What This Project Demonstrates
 - Fullstack engineering (Next.js UI + NestJS API + PostgreSQL persistence)
@@ -23,6 +23,7 @@ Many “AI automation” demos stop at prompts. Real operational value comes fro
 - Schema-driven workflow input forms generated from `inputSchema`
 - Workflow runs with deterministic lifecycle: `queued` -> `running` -> `completed` / `failed`
 - Run history and run detail pages with ordered logs and structured output payloads
+- Failed run retry flow for retry-eligible failures; retries create a new linked run and preserve the original failed run
 - Analytics endpoints + dashboard observability views (status breakdown, usage, recent activity)
 - Provider adapter layer (`simulated` by default; optional feature-flagged `openai`; future placeholders visible but non-executable)
 - Workflow create/edit provider selector with backend-reported availability status
@@ -112,8 +113,9 @@ The API exposes lightweight aggregation endpoints and the dashboard renders:
 5. Run provider execution
 6. Review execution status transitions and provider lifecycle logs
 7. Inspect structured output and safe provider metadata
-8. Review dashboard analytics and provider distribution
-9. Review provider architecture (`GET /providers` + Architecture page)
+8. For retry-eligible failures, create a linked retry run from the run detail page
+9. Review dashboard analytics and provider distribution
+10. Review provider architecture (`GET /providers` + Architecture page)
 
 ## Local Development
 ### Prerequisites
@@ -180,6 +182,8 @@ If you open the web UI via a non-localhost address (for example, a WSL/Docker/VM
   - `GET /workflow-runs`
   - `GET /workflow-runs/:id`
   - `POST /workflow-runs`
+  - `POST /workflow-runs/:id/retry`
+    - Creates a new run from a failed retry-eligible run; the original failed run is preserved
   - `GET /workflow-runs/:id/logs`
 - Analytics:
   - `GET /analytics/overview`
@@ -215,7 +219,7 @@ See `docs/screenshots/README.md` for a suggested screenshot list. Recommended se
 
 ## Future Improvements (not in MVP)
 - Additional optional real providers behind feature flags (Anthropic/local models)
-- Retry eligibility and retry counters once retry behavior is intentionally designed
+- Multi-attempt dashboard grouping for retry chains
 - Optional external workflow engine adapters (e.g., n8n)
 - Streaming run updates (SSE/WebSockets)
 - Async execution via a queue/worker
