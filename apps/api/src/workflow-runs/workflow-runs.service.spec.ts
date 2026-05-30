@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { FailureCategory } from '../common/enums/failure-category.enum';
@@ -15,6 +16,7 @@ import { WorkflowRunsService } from './workflow-runs.service';
 describe('WorkflowRunsService provider execution', () => {
   const workflow = {
     id: 'workflow-id',
+    name: 'Demo workflow',
     slug: 'demo',
     providerType: undefined,
     inputSchema: { fields: [] },
@@ -22,37 +24,74 @@ describe('WorkflowRunsService provider execution', () => {
 
   function setup(
     status: WorkflowRunStatus.Completed | WorkflowRunStatus.Failed,
+    options: {
+      workflowOverride?: Partial<WorkflowEntity>;
+      providerAvailability?: Array<{
+        type: ProviderType;
+        implemented: boolean;
+        enabled: boolean;
+      }>;
+      workflowExists?: boolean;
+    } = {},
   ) {
-    const runState = {
-      id: 'run-id',
-      workflowId: workflow.id,
-      workflow,
-      inputPayload: {},
-      outputPayload: null,
-      status: WorkflowRunStatus.Queued,
-      errorMessage: null,
-      failureReason: null,
-      failureCategory: null,
-      retryEligible: false,
-      lastErrorAt: null,
-      startedAt: null,
-      completedAt: null,
-    } as unknown as WorkflowRunEntity;
-    const logRows: Array<{ stepName: string; message: string }> = [];
-    const eventRows: Array<{ type: WorkflowEventType; message: string }> = [];
+    const activeWorkflow = {
+      ...workflow,
+      ...options.workflowOverride,
+    } as WorkflowEntity;
+    const runs = new Map<string, WorkflowRunEntity>();
+    let sequence = 0;
+
+    const makeRun = (data: Partial<WorkflowRunEntity>): WorkflowRunEntity =>
+      ({
+        id: data.id ?? `run-${++sequence}`,
+        workflowId: activeWorkflow.id,
+        workflow: activeWorkflow,
+        retriedFromRunId: null,
+        retriedFromRun: null,
+        retryCount: 0,
+        maxRetries: 3,
+        inputPayload: {},
+        outputPayload: null,
+        status: WorkflowRunStatus.Queued,
+        errorMessage: null,
+        failureReason: null,
+        failureCategory: null,
+        retryEligible: false,
+        lastErrorAt: null,
+        startedAt: null,
+        completedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...data,
+      }) as WorkflowRunEntity;
+
+    const logRows: Array<{ runId: string; stepName: string; message: string }> =
+      [];
+    const eventRows: Array<{
+      runId: string;
+      type: WorkflowEventType;
+      message: string;
+      metadata?: Record<string, unknown> | null;
+    }> = [];
+
     const runsRepo = {
       create: jest.fn(
-        (data: Partial<WorkflowRunEntity>): WorkflowRunEntity => ({
-          ...runState,
-          ...data,
-        }),
+        (data: Partial<WorkflowRunEntity>): WorkflowRunEntity => makeRun(data),
       ),
       save: jest.fn(
-        (data: Partial<WorkflowRunEntity>): Promise<WorkflowRunEntity> =>
-          Promise.resolve(Object.assign(runState, data)),
+        (data: Partial<WorkflowRunEntity>): Promise<WorkflowRunEntity> => {
+          const id = data.id ?? `run-${++sequence}`;
+          const existing = runs.get(id) ?? makeRun({ id });
+          const saved = Object.assign(existing, data, { id });
+          runs.set(id, saved);
+          return Promise.resolve(saved);
+        },
       ),
       findOne: jest.fn(
-        (): Promise<WorkflowRunEntity> => Promise.resolve(runState),
+        (params: {
+          where: { id: string };
+        }): Promise<WorkflowRunEntity | null> =>
+          Promise.resolve(runs.get(params.where.id) ?? null),
       ),
     };
     const logsRepo = {
@@ -60,13 +99,20 @@ describe('WorkflowRunsService provider execution', () => {
         return data as WorkflowLogEntity;
       }),
       save: jest.fn((data: WorkflowLogEntity): Promise<WorkflowLogEntity> => {
-        logRows.push({ stepName: data.stepName, message: data.message });
+        logRows.push({
+          runId: data.workflowRunId,
+          stepName: data.stepName,
+          message: data.message,
+        });
         return Promise.resolve(data);
       }),
     };
     const workflowsService = {
       findBySlug: jest.fn(
-        (): Promise<WorkflowEntity> => Promise.resolve(workflow),
+        (): Promise<WorkflowEntity | null> =>
+          Promise.resolve(
+            options.workflowExists === false ? null : activeWorkflow,
+          ),
       ),
     };
     const provider = {
@@ -90,16 +136,37 @@ describe('WorkflowRunsService provider execution', () => {
     };
     const providerRegistry = {
       resolve: jest.fn(() => provider),
+      listProviders: jest.fn(
+        () =>
+          options.providerAvailability ?? [
+            {
+              type: ProviderType.Simulated,
+              implemented: true,
+              enabled: true,
+            },
+            {
+              type: ProviderType.OpenAI,
+              implemented: true,
+              enabled: false,
+            },
+          ],
+      ),
     };
     const workflowEventsService = {
       record: jest.fn(
         (
-          _runId: string,
+          runId: string,
           type: WorkflowEventType,
           message: string,
-        ): Promise<{ type: WorkflowEventType; message: string }> => {
-          eventRows.push({ type, message });
-          return Promise.resolve({ type, message });
+          metadata: Record<string, unknown> | null = null,
+        ): Promise<{
+          runId: string;
+          type: WorkflowEventType;
+          message: string;
+          metadata: Record<string, unknown> | null;
+        }> => {
+          eventRows.push({ runId, type, message, metadata });
+          return Promise.resolve({ runId, type, message, metadata });
         },
       ),
     };
@@ -112,15 +179,25 @@ describe('WorkflowRunsService provider execution', () => {
       workflowEventsService as unknown as WorkflowEventsService,
     );
 
-    return { service, runState, logRows, eventRows, providerRegistry };
+    return {
+      service,
+      runs,
+      makeRun,
+      logRows,
+      eventRows,
+      providerRegistry,
+    };
   }
 
   it('defaults missing provider type to simulated and records completion logs', async () => {
-    const { service, runState, logRows, eventRows, providerRegistry } = setup(
+    const { service, logRows, eventRows, providerRegistry } = setup(
       WorkflowRunStatus.Completed,
     );
 
-    await service.create({ workflowSlug: workflow.slug, inputPayload: {} });
+    const run = await service.create({
+      workflowSlug: workflow.slug,
+      inputPayload: {},
+    });
 
     expect(providerRegistry.resolve).toHaveBeenCalledWith(
       ProviderType.Simulated,
@@ -132,10 +209,12 @@ describe('WorkflowRunsService provider execution', () => {
         'provider_execution_completed',
       ]),
     );
-    expect(runState.outputPayload).toEqual({
+    expect(run.outputPayload).toEqual({
       result: 'ok',
       providerMetadata: { provider: ProviderType.Simulated },
     });
+    expect(run.retryCount).toBe(0);
+    expect(run.maxRetries).toBe(3);
     expect(eventRows.map((row) => row.type)).toEqual([
       WorkflowEventType.RUN_CREATED,
       WorkflowEventType.VALIDATION_STARTED,
@@ -148,18 +227,19 @@ describe('WorkflowRunsService provider execution', () => {
   });
 
   it('records a provider execution failure and preserves failed lifecycle status', async () => {
-    const { service, runState, logRows, eventRows } = setup(
-      WorkflowRunStatus.Failed,
-    );
+    const { service, logRows, eventRows } = setup(WorkflowRunStatus.Failed);
 
-    await service.create({ workflowSlug: workflow.slug, inputPayload: {} });
+    const run = await service.create({
+      workflowSlug: workflow.slug,
+      inputPayload: {},
+    });
 
-    expect(runState.status).toBe(WorkflowRunStatus.Failed);
-    expect(runState.errorMessage).toBe('Provider unavailable.');
-    expect(runState.failureReason).toBe('Provider unavailable.');
-    expect(runState.failureCategory).toBe(FailureCategory.PROVIDER_ERROR);
-    expect(runState.retryEligible).toBe(true);
-    expect(runState.lastErrorAt).toBeInstanceOf(Date);
+    expect(run.status).toBe(WorkflowRunStatus.Failed);
+    expect(run.errorMessage).toBe('Provider unavailable.');
+    expect(run.failureReason).toBe('Provider unavailable.');
+    expect(run.failureCategory).toBe(FailureCategory.PROVIDER_ERROR);
+    expect(run.retryEligible).toBe(true);
+    expect(run.lastErrorAt).toBeInstanceOf(Date);
     expect(logRows.map((row) => row.stepName)).toContain(
       'provider_execution_failed',
     );
@@ -176,5 +256,125 @@ describe('WorkflowRunsService provider execution', () => {
       WorkflowEventType.PROVIDER_RESPONSE_RECEIVED,
       WorkflowEventType.RUN_FAILED,
     ]);
+  });
+
+  it('creates a new retry run for a failed retry-eligible run', async () => {
+    const { service, runs, makeRun, eventRows, logRows } = setup(
+      WorkflowRunStatus.Completed,
+    );
+    const originalRun = makeRun({
+      id: 'failed-run',
+      status: WorkflowRunStatus.Failed,
+      errorMessage: 'Provider unavailable.',
+      failureReason: 'Provider unavailable.',
+      failureCategory: FailureCategory.PROVIDER_ERROR,
+      retryEligible: true,
+      retryCount: 0,
+      maxRetries: 3,
+      inputPayload: { notes: 'Safe demo notes' },
+      completedAt: new Date(),
+    });
+    runs.set(originalRun.id, originalRun);
+
+    const retryRun = await service.retry(originalRun.id);
+
+    expect(retryRun.id).not.toBe(originalRun.id);
+    expect(retryRun.retriedFromRunId).toBe(originalRun.id);
+    expect(retryRun.retryCount).toBe(1);
+    expect(retryRun.maxRetries).toBe(3);
+    expect(retryRun.inputPayload).toEqual(originalRun.inputPayload);
+    expect(runs.get(originalRun.id)?.status).toBe(WorkflowRunStatus.Failed);
+    expect(runs.get(originalRun.id)?.retryCount).toBe(0);
+    expect(eventRows.map((row) => row.type)).toEqual(
+      expect.arrayContaining([
+        WorkflowEventType.RETRY_REQUESTED,
+        WorkflowEventType.RETRY_APPROVED,
+        WorkflowEventType.RETRIED_FROM_RUN,
+        WorkflowEventType.RETRY_RUN_CREATED,
+      ]),
+    );
+    expect(logRows.map((row) => row.stepName)).toEqual(
+      expect.arrayContaining([
+        'retry_requested',
+        'retry_approved',
+        'retried_from_run',
+        'retry_run_created',
+      ]),
+    );
+  });
+
+  it('rejects retry for a non-retry-eligible failed run', async () => {
+    const { service, runs, makeRun, eventRows } = setup(
+      WorkflowRunStatus.Completed,
+    );
+    const originalRun = makeRun({
+      id: 'failed-run',
+      status: WorkflowRunStatus.Failed,
+      retryEligible: false,
+    });
+    runs.set(originalRun.id, originalRun);
+
+    await expect(service.retry(originalRun.id)).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(eventRows.map((row) => row.type)).toEqual(
+      expect.arrayContaining([
+        WorkflowEventType.RETRY_REQUESTED,
+        WorkflowEventType.RETRY_REJECTED,
+      ]),
+    );
+  });
+
+  it('rejects retry for a completed run', async () => {
+    const { service, runs, makeRun } = setup(WorkflowRunStatus.Completed);
+    const originalRun = makeRun({
+      id: 'completed-run',
+      status: WorkflowRunStatus.Completed,
+      retryEligible: true,
+    });
+    runs.set(originalRun.id, originalRun);
+
+    await expect(service.retry(originalRun.id)).rejects.toThrow(
+      'Only failed workflow runs can be retried.',
+    );
+  });
+
+  it('rejects retry after max retry attempts are reached', async () => {
+    const { service, runs, makeRun } = setup(WorkflowRunStatus.Completed);
+    const originalRun = makeRun({
+      id: 'failed-run',
+      status: WorkflowRunStatus.Failed,
+      retryEligible: true,
+      retryCount: 3,
+      maxRetries: 3,
+    });
+    runs.set(originalRun.id, originalRun);
+
+    await expect(service.retry(originalRun.id)).rejects.toThrow(
+      'Maximum retry attempts reached (3).',
+    );
+  });
+
+  it('rejects retry when the selected provider is disabled', async () => {
+    const { service, runs, makeRun } = setup(WorkflowRunStatus.Completed, {
+      workflowOverride: { providerType: ProviderType.OpenAI },
+      providerAvailability: [
+        {
+          type: ProviderType.OpenAI,
+          implemented: true,
+          enabled: false,
+        },
+      ],
+    });
+    const originalRun = makeRun({
+      id: 'failed-run',
+      status: WorkflowRunStatus.Failed,
+      retryEligible: true,
+    });
+    runs.set(originalRun.id, originalRun);
+
+    await expect(service.retry(originalRun.id)).rejects.toThrow(
+      'Selected provider is not available for retry in this environment.',
+    );
   });
 });

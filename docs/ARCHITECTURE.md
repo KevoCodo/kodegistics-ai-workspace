@@ -1,19 +1,22 @@
 # Architecture
 
 ## High-level system architecture
+
 The system is split into a web UI (Next.js) and an API server (NestJS). The backend owns workflow definitions, run orchestration, persistence, and a safe simulation-based execution layer. PostgreSQL stores workflows, runs, and logs.
 
 ## Frontend responsibilities
+
 - Render the workflow catalog (grouped by category/status)
 - Allow simple provider selection while keeping `simulated` as the default choice
 - Display provider availability, safe returned metadata, and provider lifecycle log events
 - Collect workflow run inputs (schema-driven forms)
 - Display run status, execution timeline logs, timestamps, and final output payload
-- Display structured failure metadata for failed runs without exposing retry actions
+- Display structured failure metadata for failed runs and expose retry actions only when a run is retry eligible
 - Display normalized workflow events as an execution timeline
 - Provide a clean dashboard UX suitable for a portfolio walkthrough
 
 ## Backend responsibilities
+
 - Expose REST APIs for workflows, runs, logs, analytics, and provider readiness
 - Validate requests (DTO validation + workflow input schema checks)
 - Orchestrate the run lifecycle (`queued` -> `running` -> `completed` / `failed`)
@@ -21,15 +24,18 @@ The system is split into a web UI (Next.js) and an API server (NestJS). The back
 - Execute the selected provider and emit ordered provider lifecycle logs
 - Classify execution failures into stable categories with retry-readiness metadata
 - Record normalized workflow events for lifecycle and provider execution milestones
+- Create linked retry runs for failed retry-eligible executions without mutating the original failed run
 - Persist run outputs as structured JSON payloads
 - Provide lightweight analytics endpoints for dashboard observability (overview, status breakdown, usage)
 
 ## Database responsibilities
+
 - Persist workflow definitions (seeded on startup in the MVP)
 - Persist workflow runs (inputs, status transitions, timestamps, outputs)
 - Persist workflow logs (append-only records)
 
 ## Provider adapter layer (MVP)
+
 Workflows include a `providerType` field that selects which execution provider is used. The registry keeps orchestration stable as adapters are added.
 
 - Registered provider types: `simulated`, `openai`, `anthropic`, `local`, and `custom-webhook`
@@ -42,6 +48,7 @@ Workflows include a `providerType` field that selects which execution provider i
 - Safe OpenAI metadata is limited to provider, model, execution time, status, and timestamp
 
 ## UI provider selection and status flow (Phase 13B / 14A)
+
 1. Workflow create/edit forms allow choosing implemented providers; new workflows default to `simulated`.
 2. Placeholder providers are shown as `coming soon` and disabled in the editor to prevent accidental execution.
 3. The UI reads `GET /providers` to explain implementation and configuration availability without accessing secrets.
@@ -52,27 +59,35 @@ Workflows include a `providerType` field that selects which execution provider i
 8. Run details surface clean failure context and only safe provider metadata returned with successful output.
 
 ## Suggested API flow
+
 1. `GET /workflows` - list workflows for the catalog
 2. `GET /workflows/:slug` - get workflow details and input schema
 3. `POST /workflow-runs` - create a run (starts as `queued`)
 4. Backend synchronously resolves and executes the selected provider, appends lifecycle logs, and writes `completed`/`failed`
-5. `GET /workflow-runs` - list runs for the dashboard
-6. `GET /workflow-runs/:id` - fetch run details (status, input, output)
-7. `GET /workflow-runs/:id/logs` - fetch logs
-8. `GET /analytics/*` - compute simple observability metrics for the dashboard
-9. `GET /providers` - list providers and safe configuration availability (architecture readiness)
+5. `POST /workflow-runs/:id/retry` - create a new linked run from a failed retry-eligible run
+6. `GET /workflow-runs` - list runs for the dashboard
+7. `GET /workflow-runs/:id` - fetch run details (status, input, output)
+8. `GET /workflow-runs/:id/logs` - fetch logs
+9. `GET /analytics/*` - compute simple observability metrics for the dashboard
+10. `GET /providers` - list providers and safe configuration availability (architecture readiness)
 
-## Failure classification
-Failed runs store a public-safe reason, category, retry eligibility flag, and last error timestamp. Retry eligibility is calculated for future readiness only; no retry execution is implemented in the MVP.
+## Failure classification and retry execution
+
+Failed runs store a public-safe reason, category, retry eligibility flag, and last error timestamp. Retry eligibility is calculated from the failure category: provider, timeout, and network failures are considered transient enough to retry.
+
+Retries are explicit user actions through `POST /workflow-runs/:id/retry`. The API validates that the original run exists, failed, is retry eligible, has not reached `maxRetries`, still has a workflow template, and uses an available provider. A retry creates a new workflow run with the same input payload and workflow, sets `retriedFromRunId`, increments `retryCount`, and runs through the same execution pipeline. The original failed run remains unchanged for auditability and screenshots.
 
 ## Workflow events
-Workflow events are normalized lifecycle records separate from detailed execution logs. Events use stable types such as `RUN_CREATED`, `RUN_STARTED`, `PROVIDER_SELECTED`, `PROVIDER_REQUEST_SENT`, `PROVIDER_RESPONSE_RECEIVED`, `RUN_COMPLETED`, and `RUN_FAILED`. This keeps the execution timeline readable while leaving room for future retries, human review, evaluation scoring, multi-provider execution, and audit history.
+
+Workflow events are normalized lifecycle records separate from detailed execution logs. Events use stable types such as `RUN_CREATED`, `RUN_STARTED`, `PROVIDER_SELECTED`, `PROVIDER_REQUEST_SENT`, `PROVIDER_RESPONSE_RECEIVED`, `RUN_COMPLETED`, and `RUN_FAILED`. Retry-specific events include `RETRY_REQUESTED`, `RETRY_APPROVED`, `RETRY_REJECTED`, `RETRY_RUN_CREATED`, and `RETRIED_FROM_RUN`. This keeps the execution timeline readable while leaving room for future human review, evaluation scoring, multi-provider execution, and audit history.
 
 ## Seeding (demo readiness)
+
 - Workflows are seeded on API startup (idempotent upsert by `slug`).
 - Sample runs can be seeded for screenshot-ready UI in non-production environments (only when the database has zero runs).
 
 ## Text-based architecture diagram
+
 ```
 Browser (Next.js UI)
         |
@@ -91,4 +106,3 @@ Provider Registry
         v
 PostgreSQL (workflow, workflow_run, workflow_log)
 ```
-
